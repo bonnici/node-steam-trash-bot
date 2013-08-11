@@ -1,0 +1,6 @@
+logs/*
+!.gitkeep
+node_modules
+secrets.js
+sentry
+servers

@@ -1,4 +1,12 @@
 node-steam-trash-bot
 ====================
 
-Steam bot that takes any trash from your inventory and sends it to anyone else who wants it
+This is a Steam bot that will automatically accept friend requests, and will take any trash out of other peoples inventory, or give anything from it's own inventory. To send trash to it, sent a trade request and put anything up for trade, the bot will accept anything. To get anything out of its inventory, start a trade request and paste a link to the item. The bot should hopefully be up and running [here](http://steamcommunity.com/id/trashbot). This code is a bit of spaghetti but it was something I just wanted to get working and it gets the job done. If you want to get your own copy running you'll need a file called secrets.js that contains the following:
+
+	exports.secrets = {
+		username: 'username',
+		password: 'password',
+		guardCode: 'code from email after unsuccessful login attempt'
+	};
+
+The bot will need to have Steam Guard enabled for 15 days before it will be able to respond to trade requests, and it may also need to own a game.

@@ -1,0 +1,13 @@
+{
+    "name": "steam-trash-bot"
+  , "version": "0.0.1"
+  , "description": "Trade bot that accepts and sends all requests"
+  , "author": "bonnici <lljksteveholt@gmail.com>"
+  , "private": true
+  , "dependencies": {
+      "steam": "0.6.x"
+    , "underscore": "1.5.x"
+    , "winston": "0.7.x"
+    , "steam-trade": "git://github.com/seishun/node-steam-trade.git"
+  }
+}
