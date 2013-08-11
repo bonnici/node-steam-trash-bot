@@ -9,7 +9,7 @@ var secrets = require('./secrets.js').secrets;
 var serversFile = 'servers';
 var sentryFile = 'sentry';
 var webSessionId = null;
-var steamTrade = null;
+var cookies = null;
 var canTrade = false;
 
 if (fs.existsSync(serversFile)) {
@@ -86,19 +86,14 @@ bot.on('webSessionID', function(sessionId) {
 	winston.info("Got webSessionID " + sessionId);
 	webSessionId = sessionId;
 
-	bot.webLogOn(function(cookies) {
-		winston.info("webLogOn returned " + cookies);
-		steamTrade = new SteamTrade();
-		steamTrade.sessionID = webSessionId;
-		_.each(cookies, function(cookie) {  
-			winston.info("setting cookie " + cookie);
-			steamTrade.setCookie(cookie);
-		});
+	bot.webLogOn(function(newCookies) {
+		winston.info("webLogOn returned " + newCookies);
+		cookies = newCookies;
 
 		bot.setPersonaState(steam.EPersonaState.LookingToTrade);
 
 		canTrade = true;
-		winston.info("steamTrade set up", steamTrade);
+		winston.info("cookies/session set up");
 	});
 });
 
@@ -112,7 +107,7 @@ var wrongLinkMessage = 'It looks like you selected "Copy Page URL", you need to 
 var badLinkMessage = 'I don\'t recognise that link. ' + takeInstructions;
 var itemNotFoundMessage = 'It looks like I don\'t have that item anymore, you may need to refresh my inventory page';
 
-var parseInventoryLink = function(message, callback) {
+var parseInventoryLink = function(steamTrade, message, callback) {
 	var prefix = 'http://steamcommunity.com/id/trashbot/inventory/#';
 	if (message.indexOf(prefix) != 0) {
 		return callback();
@@ -150,7 +145,7 @@ var parseInventoryLink = function(message, callback) {
 	}
 };
 
-var readyUp = function(steamId) {
+var readyUp = function(steamTrade, steamId) {
 	steamTrade.ready(function() {
 		winston.info("Set my offerings as ready with " + steamId);
 		steamTrade.confirm(function() {
@@ -161,11 +156,19 @@ var readyUp = function(steamId) {
 
 bot.on('sessionStart', function(steamId) {
 	winston.info("sessionStart " + steamId);
-	if (!canTrade || !steamTrade) {
+	if (!canTrade) {
 		winston.info("Not ready to trade with " + steamId);
 		bot.sendMessage(steamId, "Sorry, I can't accept a trade request right now, wait a few minutes and try again.")
 	}
 	else {
+
+		var steamTrade = new SteamTrade();
+		steamTrade.sessionID = webSessionId;
+		_.each(cookies, function(cookie) {  
+			winston.info("setting cookie " + cookie);
+			steamTrade.setCookie(cookie);
+		});
+
 		steamTrade.open(steamId, function() {
 			winston.info("steamTrade opened with " + steamId);
 			steamTrade.chatMsg(sendInstructions, function() {
@@ -174,7 +177,7 @@ bot.on('sessionStart', function(steamId) {
 
 					steamTrade.on('ready', function() {
 						winston.info("User is ready to trade " + steamId);
-						readyUp(steamId);
+						readyUp(steamTrade, steamId);
 					});
 
 					steamTrade.on('chatMsg', function(message) {
@@ -186,13 +189,13 @@ bot.on('sessionStart', function(steamId) {
 							steamTrade.chatMsg(wrongLinkMessage);
 						}
 						else {
-							parseInventoryLink(message, function(item) {
+							parseInventoryLink(steamTrade, message, function(item) {
 								if (!item) {
 									steamTrade.chatMsg(itemNotFoundMessage);
 								}
 								else {
 									steamTrade.addItems([item], function() {
-										readyUp(steamId);
+										readyUp(steamTrade, steamId);
 									});
 								}
 							});
