@@ -142,7 +142,9 @@ bot.on('webSessionID', function(sessionId) {
 		winston.info("webLogOn returned " + newCookies);
 		cookies = newCookies;
 
-		bot.setPersonaState(steam.EPersonaState.LookingToTrade);
+		if (!paused) {
+			bot.setPersonaState(steam.EPersonaState.LookingToTrade);
+		}
 
 		canTrade = true;
 		winston.info("cookies/session set up");
@@ -212,7 +214,9 @@ bot.on('sessionStart', function(steamId) {
 		});
 
 		steamTrade.open(steamId, function() {
-			bot.setPersonaState(steam.EPersonaState.Away);
+			if (!paused) {
+				bot.setPersonaState(steam.EPersonaState.Away);
+			}
 
 			winston.info("steamTrade opened with " + steamId);
 			steamTrade.chatMsg(sendInstructions, function() {
@@ -248,7 +252,9 @@ bot.on('sessionStart', function(steamId) {
 
 					steamTrade.on('end', function(status, getItems) {
 						winston.info("Trade ended with status " + status);
-						bot.setPersonaState(steam.EPersonaState.LookingToTrade);
+						if (!paused) {
+							bot.setPersonaState(steam.EPersonaState.LookingToTrade);
+						}
 						if (status == 'complete') {
 							bot.sendMessage(steamId, tradeCompleteMessage);
 						}
