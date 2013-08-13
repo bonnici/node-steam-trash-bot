@@ -11,6 +11,23 @@ var sentryFile = 'sentry';
 var webSessionId = null;
 var cookies = null;
 var canTrade = false;
+var paused = false;
+
+var sendInstructions = "If you want to give me something, offer it for trade then check ready and I'll check ready soon after. \
+Click Make Trade when you're sure you want to send me your items.";
+var takeInstructions = 'If you want me to send you something from my inventory, go to my inventory (http://steamcommunity.com/id/trashbot/inventory/), \
+right click on what you want and select "Copy Link Address", then paste that into this trade chat window and I\'ll add the item. Check ready then click Make Trade when you\'re happy with the offerings.';
+var tradeCompleteMessage = "Trade complete! Please remember to remove me from your friends list if you don't want to make any more trades so that other \
+people can trade with me. If you want to make trades later you can always re-add me.";
+var wrongLinkMessage = 'It looks like you selected "Copy Page URL", you need to select "Copy Link Address"';
+var badLinkMessage = 'I don\'t recognise that link. ' + takeInstructions;
+var itemNotFoundMessage = 'It looks like I don\'t have that item anymore, you may need to refresh my inventory page';
+var welcomeMessage = "Hello! To give me your trash or get something from my inventory, invite me to trade and I'll give you instructions there. \
+Please remember to remove me from your friends list after you are done so that other people can trade with me. \
+If you want to make trades later you can always re-add me.";
+var chatResponse = "Hello! To give me your trash or get something from my inventory, invite me to trade and I'll give you instructions there.";
+var pausedMessage = "Sorry, I can't trade right now. I'll set my status as Looking to Trade when I'm ready to accept requests again.";
+var notReadyMessage = "Sorry, I can't accept a trade request right now, wait a few minutes and try again.";
 
 if (fs.existsSync(serversFile)) {
 	steam.servers = JSON.parse(fs.readFileSync(serversFile));
@@ -64,22 +81,57 @@ bot.on('friend', function(userId, relationship) {
 		winston.info("added " + userId + " as a friend");
 		bot.addFriend(userId);
 		setTimeout(function() {
-			bot.sendMessage(userId, "Hello! To give me your trash or get something from my inventory, invite me to trade and I'll give you instructions there. \
-Please remember to remove me from your friends list after you are done so that other people can trade with me. \
-If you want to make trades later you can always re-add me.");
+			bot.sendMessage(userId, welcomeMessage);
 		}, 5000);
 	}
 });
 
 bot.on('friendMsg', function(userId, message, entryType) { 
 	if (entryType == steam.EChatEntryType.ChatMsg) {
-		bot.sendMessage(userId, "Hello! To give me your trash or get something from my inventory, invite me to trade and I'll give you instructions there.");
+		if (userId == secrets.ownerId) {
+			switch (message) {
+			case 'pause':
+				paused = true;
+				bot.setPersonaState(steam.EPersonaState.Snooze);
+				winston.info("PAUSED");
+				break;
+			case 'unpause':
+				paused = false;
+				bot.setPersonaState(steam.EPersonaState.LookingToTrade);
+				winston.info("UNPAUSED");
+				break;
+			default: 
+				bot.sendMessage(userId, "Unrecognized command");
+				break;
+			}
+		}
+		else {
+			bot.sendMessage(userId, chatResponse);
+		}
 	}
 });
 
 bot.on('tradeProposed', function(tradeId, steamId) { 
 	winston.info("Trade from " + steamId + " proposed, ID " + tradeId);
-	bot.respondToTrade(tradeId, true);
+
+	if (_.contains(secrets.blacklist, steamId)) {
+		winston.info("Blocked user " + steamId);
+		bot.respondToTrade(tradeId, false);
+	}
+	else if (!canTrade) {
+		winston.info("Can't trade");
+		bot.sendMessage(steamId, notReadyMessage);
+		bot.respondToTrade(tradeId, false);
+	}
+	else if (paused && steamId != secrets.ownerId) {
+		winston.info("Paused");
+		bot.sendMessage(steamId, pausedMessage);
+		bot.respondToTrade(tradeId, false);
+	}
+	else {
+		winston.info("Responding to trade");
+		bot.respondToTrade(tradeId, true);
+	}
 });
 
 bot.on('webSessionID', function(sessionId) {
@@ -96,16 +148,6 @@ bot.on('webSessionID', function(sessionId) {
 		winston.info("cookies/session set up");
 	});
 });
-
-var sendInstructions = "If you want to give me something, offer it for trade then check ready and I'll check ready soon after. \
-Click Make Trade when you're sure you want to send me your items.";
-var takeInstructions = 'If you want me to send you something from my inventory, go to my inventory (http://steamcommunity.com/id/trashbot/inventory/), \
-right click on what you want and select "Copy Link Address", then paste that into this trade chat window and I\'ll add the item. Check ready then click Make Trade when you\'re happy with the offerings.';
-var tradeCompleteMessage = "Trade complete! Please remember to remove me from your friends list if you don't want to make any more trades so that other \
-people can trade with me. If you want to make trades later you can always re-add me.";
-var wrongLinkMessage = 'It looks like you selected "Copy Page URL", you need to select "Copy Link Address"';
-var badLinkMessage = 'I don\'t recognise that link. ' + takeInstructions;
-var itemNotFoundMessage = 'It looks like I don\'t have that item anymore, you may need to refresh my inventory page';
 
 var parseInventoryLink = function(steamTrade, message, callback) {
 	var prefix = 'http://steamcommunity.com/id/trashbot/inventory/#';
@@ -158,7 +200,7 @@ bot.on('sessionStart', function(steamId) {
 	winston.info("sessionStart " + steamId);
 	if (!canTrade) {
 		winston.info("Not ready to trade with " + steamId);
-		bot.sendMessage(steamId, "Sorry, I can't accept a trade request right now, wait a few minutes and try again.")
+		bot.sendMessage(steamId, notReadyMessage);
 	}
 	else {
 
@@ -170,6 +212,8 @@ bot.on('sessionStart', function(steamId) {
 		});
 
 		steamTrade.open(steamId, function() {
+			bot.setPersonaState(steam.EPersonaState.Away);
+
 			winston.info("steamTrade opened with " + steamId);
 			steamTrade.chatMsg(sendInstructions, function() {
 				steamTrade.chatMsg(takeInstructions, function() {
@@ -203,6 +247,8 @@ bot.on('sessionStart', function(steamId) {
 					});
 
 					steamTrade.on('end', function(status, getItems) {
+						winston.info("Trade ended with status " + status);
+						bot.setPersonaState(steam.EPersonaState.LookingToTrade);
 						if (status == 'complete') {
 							bot.sendMessage(steamId, tradeCompleteMessage);
 						}

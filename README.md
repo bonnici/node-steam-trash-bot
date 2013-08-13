@@ -6,7 +6,8 @@ This is a Steam bot that will automatically accept friend requests, and will tak
 	exports.secrets = {
 		username: 'username',
 		password: 'password',
-		guardCode: 'code from email after unsuccessful login attempt'
+		guardCode: 'code from email after unsuccessful login attempt',
+		ownerId: 'numerical steam ID of the person who can control the bot'
 	};
 
 The bot will need to have Steam Guard enabled for 15 days before it will be able to respond to trade requests, and it may also need to own a game.
