@@ -29,6 +29,7 @@ var chatResponse = "Hello! To give me your trash or get something from my invent
 var pausedMessage = "Sorry, I can't trade right now. I'll set my status as Looking to Trade when I'm ready to accept requests again.";
 var notReadyMessage = "Sorry, I can't accept a trade request right now, wait a few minutes and try again.";
 var cantAddMessage = "Sorry, I can't add that item, it might not be tradable. If it's giftable you can leave a comment on my profile and I might gift it to you when I can.";
+var addedMessage = "Item added, click ready when you want to make the trade";
 
 if (fs.existsSync(serversFile)) {
 	steam.servers = JSON.parse(fs.readFileSync(serversFile));
@@ -250,12 +251,11 @@ bot.on('sessionStart', function(steamId) {
 								}
 								else {
 									steamTrade.addItems([item], function(res) {
-										winston.info("addItems result.success", res.success);
-										if (res.success) {
-											readyUp(steamTrade, steamId);
+										if (!res || res.length < 1 || res[0].error) {
+											steamTrade.chatMsg(cantAddMessage);
 										}
 										else {
-											steamTrade.chatMsg(cantAddMessage);
+											steamTrade.chatMsg(addedMessage);
 										}
 									});
 								}
