@@ -21,13 +21,14 @@ var tradeCompleteMessage = "Trade complete! Please remember to remove me from yo
 people can trade with me. If you want to make trades later you can always re-add me.";
 var wrongLinkMessage = 'It looks like you selected "Copy Page URL", you need to select "Copy Link Address"';
 var badLinkMessage = 'I don\'t recognise that link. ' + takeInstructions;
-var itemNotFoundMessage = 'It looks like I don\'t have that item anymore, you may need to refresh my inventory page';
+var itemNotFoundMessage = "I can't find that item, you may need to refresh my inventory page or try to copy the link again.";
 var welcomeMessage = "Hello! To give me your trash or get something from my inventory, invite me to trade and I'll give you instructions there. \
 Please remember to remove me from your friends list after you are done so that other people can trade with me. \
 If you want to make trades later you can always re-add me.";
 var chatResponse = "Hello! To give me your trash or get something from my inventory, invite me to trade and I'll give you instructions there.";
 var pausedMessage = "Sorry, I can't trade right now. I'll set my status as Looking to Trade when I'm ready to accept requests again.";
 var notReadyMessage = "Sorry, I can't accept a trade request right now, wait a few minutes and try again.";
+var cantAddMessage = "Sorry, I can't add that item, it might not be tradable. If it's giftable you can leave a comment on my profile and I might gift it to you when I can.";
 
 if (fs.existsSync(serversFile)) {
 	steam.servers = JSON.parse(fs.readFileSync(serversFile));
@@ -154,6 +155,9 @@ bot.on('webSessionID', function(sessionId) {
 var parseInventoryLink = function(steamTrade, message, callback) {
 	var prefix = 'http://steamcommunity.com/id/trashbot/inventory/#';
 	if (message.indexOf(prefix) != 0) {
+		prefix = 'http://steamcommunity.com/id/trashbot/inventory#';
+	}
+	if (message.indexOf(prefix) != 0) {	
 		return callback();
 	}
 	else {
@@ -230,20 +234,29 @@ bot.on('sessionStart', function(steamId) {
 
 					steamTrade.on('chatMsg', function(message) {
 						winston.info("chatMsg from " + steamId, message);
-						if (message.indexOf('http://steamcommunity.com/id/trashbot/inventory/') != 0) {
+						if (message.indexOf('http://steamcommunity.com/id/trashbot/inventory') != 0) {
+							winston.info("Bad link");
 							steamTrade.chatMsg(badLinkMessage);
 						}
 						else if (message == 'http://steamcommunity.com/id/trashbot/inventory/') {
+							winston.info("Wrong link");
 							steamTrade.chatMsg(wrongLinkMessage);
 						}
 						else {
 							parseInventoryLink(steamTrade, message, function(item) {
 								if (!item) {
+									winston.info("No item retuned");
 									steamTrade.chatMsg(itemNotFoundMessage);
 								}
 								else {
-									steamTrade.addItems([item], function() {
-										readyUp(steamTrade, steamId);
+									steamTrade.addItems([item], function(res) {
+										winston.info("addItems result.success", res.success);
+										if (res.success) {
+											readyUp(steamTrade, steamId);
+										}
+										else {
+											steamTrade.chatMsg(cantAddMessage);
+										}
 									});
 								}
 							});
