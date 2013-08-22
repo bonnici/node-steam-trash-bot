@@ -1,7 +1,12 @@
 var fs = require('fs');
+var crypto = require('crypto');
+
 var steam = require('steam');
 var SteamTrade = require('steam-trade');
 var winston = require('winston');
+var request = require('request');
+var cheerio = require('cheerio');
+var uuid = require('node-uuid');
 var _ = require('underscore');
 
 var secrets = require('./secrets.js').secrets;
@@ -76,6 +81,10 @@ bot.on('sentry', function(buffer) {
 	fs.writeFile(sentryFile, buffer);
 });
 
+bot.on('servers', function(servers) {
+	fs.writeFile(serversFile, JSON.stringify(servers));
+});
+
 // Auto-accept friends
 bot.on('friend', function(userId, relationship) { 
 	winston.info("friend event for " + userId + " type " + relationship);
@@ -90,21 +99,31 @@ bot.on('friend', function(userId, relationship) {
 
 bot.on('friendMsg', function(userId, message, entryType) { 
 	if (entryType == steam.EChatEntryType.ChatMsg) {
+
+		if (message.indexOf('game ') == 0) {
+			var gameId = message.substring('game '.length);
+			bot.gamesPlayed([gameId]);
+			return;
+		}
+
 		if (userId == secrets.ownerId) {
 			switch (message) {
 			case 'pause':
 				paused = true;
 				bot.setPersonaState(steam.EPersonaState.Snooze);
 				winston.info("PAUSED");
-				break;
+				return;
 			case 'unpause':
 				paused = false;
 				bot.setPersonaState(steam.EPersonaState.LookingToTrade);
 				winston.info("UNPAUSED");
-				break;
+				return;
+			case 'export':
+				getInventoryHistory();
+				return;
 			default: 
 				bot.sendMessage(userId, "Unrecognized command");
-				break;
+				return;
 			}
 		}
 		else {
@@ -152,56 +171,6 @@ bot.on('webSessionID', function(sessionId) {
 		winston.info("cookies/session set up");
 	});
 });
-
-var parseInventoryLink = function(steamTrade, message, callback) {
-	var prefix = 'http://steamcommunity.com/id/trashbot/inventory/#';
-	if (message.indexOf(prefix) != 0) {
-		prefix = 'http://steamcommunity.com/id/trashbot/inventory#';
-	}
-	if (message.indexOf(prefix) != 0) {	
-		return callback();
-	}
-	else {
-		var itemDetails = message.substring(prefix.length);
-		winston.info("Parsed item details " + itemDetails);
-		if (!itemDetails) {
-			return callback();
-		}
-
-		var splitDetails = itemDetails.split("_");
-		winston.info("Split item details", splitDetails);
-		if (splitDetails.length != 3) {
-			return callback();
-		}
-
-		var appId = splitDetails[0];
-		var contextId = splitDetails[1];
-
-		steamTrade.loadInventory(appId, contextId, function(items) {
-			if (!items) {
-				return callback();
-			}
-			else {
-				var result = null;
-				_.each(items, function(item) {
-					if (item.id == splitDetails[2]) {
-						result = item;
-					}
-				});
-				return callback(result);
-			}
-		});
-	}
-};
-
-var readyUp = function(steamTrade, steamId) {
-	steamTrade.ready(function() {
-		winston.info("Set my offerings as ready with " + steamId);
-		steamTrade.confirm(function() {
-			winston.info("Confirmed trade with " + steamId);
-		});
-	});
-}
 
 bot.on('sessionStart', function(steamId) {
 	winston.info("sessionStart " + steamId);
@@ -278,6 +247,132 @@ bot.on('sessionStart', function(steamId) {
 	}
 });
 
-bot.on('servers', function(servers) {
-	fs.writeFile(serversFile, JSON.stringify(servers));
-});
+var parseInventoryLink = function(steamTrade, message, callback) {
+	var prefix = 'http://steamcommunity.com/id/trashbot/inventory/#';
+	if (message.indexOf(prefix) != 0) {
+		prefix = 'http://steamcommunity.com/id/trashbot/inventory#';
+	}
+	if (message.indexOf(prefix) != 0) {	
+		return callback();
+	}
+	else {
+		var itemDetails = message.substring(prefix.length);
+		winston.info("Parsed item details " + itemDetails);
+		if (!itemDetails) {
+			return callback();
+		}
+
+		var splitDetails = itemDetails.split("_");
+		winston.info("Split item details", splitDetails);
+		if (splitDetails.length != 3) {
+			return callback();
+		}
+
+		var appId = splitDetails[0];
+		var contextId = splitDetails[1];
+
+		steamTrade.loadInventory(appId, contextId, function(items) {
+			if (!items) {
+				return callback();
+			}
+			else {
+				var result = null;
+				_.each(items, function(item) {
+					if (item.id == splitDetails[2]) {
+						result = item;
+					}
+				});
+				return callback(result);
+			}
+		});
+	}
+};
+
+var readyUp = function(steamTrade, steamId) {
+	steamTrade.ready(function() {
+		winston.info("Set my offerings as ready with " + steamId);
+		steamTrade.confirm(function() {
+			winston.info("Confirmed trade with " + steamId);
+		});
+	});
+}
+
+var getInventoryHistory = function() {
+	var jar = request.jar();
+	_.each(cookies, function(cookieStr) {
+		winston.info("adding cookie to jar", cookieStr);
+		var reqCookie = request.cookie(cookieStr);
+		jar.add(reqCookie);
+	});
+
+	var results = [];	
+
+	requestHistoryPage(1, jar, results, function() {
+		fs.writeFileSync('trades.csv', '"Trade ID","Date","Time","Encrypted User","Direction","Item"\n');
+
+		_.each(results, function(historyItem) {
+			winston.info("historyItem", historyItem);
+			fs.appendFileSync('trades.csv', formatHistoryItem(historyItem));
+		});
+	});
+};
+
+var formatHistoryItem = function(historyItem) {
+	var hmac = crypto.createHmac("sha1", secrets.hmacSecret);
+	hmac.update(historyItem.user);
+	encryptedUser = hmac.digest("hex");
+
+	var row = '"' + historyItem.tradeId + '",';
+	row += '"' + historyItem.date + '",';
+	row += '"' + historyItem.time + '",';
+	row += '"' + encryptedUser + '",';
+	row += '"' + historyItem.type + '",';
+	row += '"' + historyItem.item + '"\n';
+
+	return row;
+};
+
+var requestHistoryPage = function(pageNum, jar, results, callback) {
+	var url = 'http://steamcommunity.com/id/trashbot/inventoryhistory/?p=' + pageNum;
+	winston.info("requesting page " + url);
+	request({ url: url, jar: jar }, function (error, response, body) {
+		if (error) {
+			winston.error("request error", error);
+		}
+		else {
+			$ = cheerio.load(body);
+
+			var lastPage = true;
+			$('.pagebtn').each(function(i, elem) {
+				var $elem = $(elem);
+				if ($elem.text() == '>' && !$elem.hasClass('disabled')) {
+					lastPage = false;
+				}
+			});
+
+			$('.tradehistoryrow').each(function(i, elem) {
+				winston.info("processing row");
+				var date = $(elem).find('.tradehistory_date').text();
+				var time = $(elem).find('.tradehistory_timestamp').text();
+				var user = $(elem).find('.tradehistory_event_description a').attr('href');
+				var tradeId = uuid.v4();
+
+				$(elem).find('.tradehistory_items_received .history_item .history_item_name').each(function(i, itemElem) {
+					results.push({ tradeId: tradeId, date: date, time: time, user: user, type: 'Received', item: $(itemElem).text() });
+				});
+				$(elem).find('.tradehistory_items_given .history_item .history_item_name').each(function(i, itemElem) {
+					results.push({ tradeId: tradeId, date: date, time: time, user: user, type: 'Given', item: $(itemElem).text() });
+				});
+			});
+
+
+			if (lastPage) {
+				winston.info('got to last page');
+				return callback();
+			}
+			else {
+				requestHistoryPage(pageNum + 1, jar, results, callback);
+			}
+		}
+	});
+};

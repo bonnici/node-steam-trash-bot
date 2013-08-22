@@ -9,5 +9,8 @@
     , "underscore": "1.5.x"
     , "winston": "0.7.x"
     , "steam-trade": "git://github.com/seishun/node-steam-trade.git"
+    , "request": "2.27.x"
+    , "cheerio": "0.12.x"
+    , "node-uuid": "1.4.x"
   }
 }

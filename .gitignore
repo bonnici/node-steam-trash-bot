@@ -4,3 +4,4 @@ node_modules
 secrets.js
 sentry
 servers
+trades.csv
