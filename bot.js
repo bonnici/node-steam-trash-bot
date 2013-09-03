@@ -98,6 +98,7 @@ bot.on('friend', function(userId, relationship) {
 });
 
 bot.on('friendMsg', function(userId, message, entryType) { 
+	winston.info("friendMsg event for " + userId + " entryType " + entryType + " message " + message);
 	if (entryType == steam.EChatEntryType.ChatMsg) {
 
 		if (userId == secrets.ownerId) {
