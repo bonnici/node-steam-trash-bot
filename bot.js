@@ -20,7 +20,7 @@ var paused = false;
 
 var sendInstructions = "If you want to give me something, offer it for trade then check ready and I'll check ready soon after. \
 Click Make Trade when you're sure you want to send me your items.";
-var takeInstructions = 'If you want me to send you something from my inventory, go to my inventory (http://steamcommunity.com/id/trashbot/inventory/), \
+var takeInstructions = 'If you want me to send you something from my inventory, go to my inventory (http://steamcommunity.com/id/' + secrets.profileId + '/inventory/), \
 right click on what you want and select "Copy Link Address", then paste that into this trade chat window and I\'ll add the item. Check ready then click Make Trade when you\'re happy with the offerings.';
 var tradeCompleteMessage = "Trade complete! Please remember to remove me from your friends list if you don't want to make any more trades so that other \
 people can trade with me. If you want to make trades later you can always re-add me.";
@@ -100,14 +100,13 @@ bot.on('friend', function(userId, relationship) {
 bot.on('friendMsg', function(userId, message, entryType) { 
 	if (entryType == steam.EChatEntryType.ChatMsg) {
 
-
 		if (userId == secrets.ownerId) {
 			if (message.indexOf('game ') == 0) {
 				var gameId = message.substring('game '.length);
 				bot.gamesPlayed([gameId]);
 				return;
 			}
-			
+
 			switch (message) {
 			case 'pause':
 				paused = true;
@@ -205,11 +204,11 @@ bot.on('sessionStart', function(steamId) {
 
 					steamTrade.on('chatMsg', function(message) {
 						winston.info("chatMsg from " + steamId, message);
-						if (message.indexOf('http://steamcommunity.com/id/trashbot/inventory') != 0) {
+						if (message.indexOf('http://steamcommunity.com/id/' + secrets.profileId + '/inventory') != 0) {
 							winston.info("Bad link");
 							steamTrade.chatMsg(badLinkMessage);
 						}
-						else if (message == 'http://steamcommunity.com/id/trashbot/inventory/') {
+						else if (message == 'http://steamcommunity.com/id/'  + secrets.profileId +  '/inventory/') {
 							winston.info("Wrong link");
 							steamTrade.chatMsg(wrongLinkMessage);
 						}
@@ -249,9 +248,9 @@ bot.on('sessionStart', function(steamId) {
 });
 
 var parseInventoryLink = function(steamTrade, message, callback) {
-	var prefix = 'http://steamcommunity.com/id/trashbot/inventory/#';
+	var prefix = 'http://steamcommunity.com/id/' + secrets.profileId + '/inventory/#';
 	if (message.indexOf(prefix) != 0) {
-		prefix = 'http://steamcommunity.com/id/trashbot/inventory#';
+		prefix = 'http://steamcommunity.com/id/' + secrets.profileId + '/inventory#';
 	}
 	if (message.indexOf(prefix) != 0) {	
 		return callback();
@@ -334,7 +333,7 @@ var formatHistoryItem = function(historyItem) {
 };
 
 var requestHistoryPage = function(pageNum, jar, results, callback) {
-	var url = 'http://steamcommunity.com/id/trashbot/inventoryhistory/?p=' + pageNum;
+	var url = 'http://steamcommunity.com/id/' + secrets.profileId + '/inventoryhistory/?p=' + pageNum;
 	winston.info("requesting page " + url);
 	request({ url: url, jar: jar }, function (error, response, body) {
 		if (error) {
