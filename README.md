@@ -7,7 +7,10 @@ This is a Steam bot that will automatically accept friend requests, and will tak
 		username: 'username',
 		password: 'password',
 		guardCode: 'code from email after unsuccessful login attempt',
+		profileId: 'ID part of the profile URL e.g. trashbot for http://steamcommunity.com/id/trashbot/inventory/',
 		ownerId: 'numerical steam ID of the person who can control the bot'
+		blacklist: ['steam ID of user to block', 'another steam ID to block'],
+		hmacSecret: 'random string used to encode usernames during export'
 	};
 
 The bot will need to have Steam Guard enabled for 15 days before it will be able to respond to trade requests, and it may also need to own a game.
