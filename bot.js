@@ -100,13 +100,14 @@ bot.on('friend', function(userId, relationship) {
 bot.on('friendMsg', function(userId, message, entryType) { 
 	if (entryType == steam.EChatEntryType.ChatMsg) {
 
-		if (message.indexOf('game ') == 0) {
-			var gameId = message.substring('game '.length);
-			bot.gamesPlayed([gameId]);
-			return;
-		}
 
 		if (userId == secrets.ownerId) {
+			if (message.indexOf('game ') == 0) {
+				var gameId = message.substring('game '.length);
+				bot.gamesPlayed([gameId]);
+				return;
+			}
+			
 			switch (message) {
 			case 'pause':
 				paused = true;
