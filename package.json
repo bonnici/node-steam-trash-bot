@@ -12,5 +12,7 @@
     , "request": "2.27.x"
     , "cheerio": "0.12.x"
     , "node-uuid": "1.4.x"
+    , "node-phantom": "0.2.x"
+    , "async": "0.2.x"
   }
 }

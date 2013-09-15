@@ -7,6 +7,8 @@ var winston = require('winston');
 var request = require('request');
 var cheerio = require('cheerio');
 var uuid = require('node-uuid');
+var phantom = require('node-phantom');
+var async = require('async');
 var _ = require('underscore');
 
 var secrets = require('./secrets.js').secrets;
@@ -17,6 +19,7 @@ var webSessionId = null;
 var cookies = null;
 var canTrade = false;
 var paused = false;
+var respondingToTradeRequests = false; // True when using PhantomJS to accept web-based trades
 
 var sendInstructions = "If you want to give me something, offer it for trade then check ready and I'll check ready soon after. \
 Click Make Trade when you're sure you want to send me your items.";
@@ -121,6 +124,9 @@ bot.on('friendMsg', function(userId, message, entryType) {
 				return;
 			case 'export':
 				getInventoryHistory();
+				return;
+			case 'offers':
+				acceptAllTradeOffers();
 				return;
 			default: 
 				bot.sendMessage(userId, "Unrecognized command");
@@ -248,14 +254,38 @@ bot.on('sessionStart', function(steamId) {
 	}
 });
 
+bot.on('tradeOffers', function(numOffers) {
+	winston.info("tradeOffers event", arguments);
+
+	if (numOffers <= 0) {
+		return;
+	}
+
+	if (respondingToTradeRequests) {
+		winston.info("Already responding to trades");
+		return;
+	}
+
+	if (!canTrade) {
+		winston.info("Can't accept trade offers yet");
+		return;
+	}
+	
+	// Wait a few seconds before responding
+	//temp Disabled until I know it works
+	//setTimeout(function() { acceptAllTradeOffers(); }, 2000);
+});
+
 var parseInventoryLink = function(steamTrade, message, callback) {
 	var prefix = 'http://steamcommunity.com/id/' + secrets.profileId + '/inventory/#';
 	if (message.indexOf(prefix) != 0) {
 		prefix = 'http://steamcommunity.com/id/' + secrets.profileId + '/inventory#';
 	}
+
 	if (message.indexOf(prefix) != 0) {	
 		return callback();
 	}
+
 	else {
 		var itemDetails = message.substring(prefix.length);
 		winston.info("Parsed item details " + itemDetails);
@@ -299,13 +329,7 @@ var readyUp = function(steamTrade, steamId) {
 }
 
 var getInventoryHistory = function() {
-	var jar = request.jar();
-	_.each(cookies, function(cookieStr) {
-		winston.info("adding cookie to jar", cookieStr);
-		var reqCookie = request.cookie(cookieStr);
-		jar.add(reqCookie);
-	});
-
+	var jar = cookieJar();
 	var results = [];	
 
 	requestHistoryPage(1, jar, results, function() {
@@ -376,4 +400,114 @@ var requestHistoryPage = function(pageNum, jar, results, callback) {
 			}
 		}
 	});
+};
+
+var acceptAllTradeOffers = function() {
+	respondingToTradeRequests = true;
+
+	var jar = cookieJar();
+	var url = 'http://steamcommunity.com/id/' + secrets.profileId + '/tradeoffers/';
+	winston.info("requesting page " + url);
+
+	request({ url: url, jar: jar }, function (error, response, body) {
+		if (error) {
+			winston.error("tradeoffers request error", error);
+			respondingToTradeRequests = false;
+			return;
+		}
+
+		$ = cheerio.load(body);
+
+		var tradeIds = [];
+		$('.tradeoffer').each(function(i, elem) {
+			var $elem = $(elem);
+
+			var active = $elem.find('.tradeoffer_footer_actions').length > 0;
+			var id = $elem.attr('id');
+
+			winston.info("Found " + (active ? "active" : "inactive") + " trade request with ID:" , id);
+
+			if (active) {
+				var tradeId = id.replace('tradeofferid_', '');
+				if (tradeId) {
+					tradeIds.push(tradeId);
+				}
+			}
+		});
+
+		async.eachSeries(tradeIds, acceptTradeOffer, function(err) { 
+			winston.info("Finished accepting trade offers with err", err)
+			respondingToTradeRequests = false; 
+		});
+	});
+};
+
+var acceptTradeOffer = function(tradeId, callback) {
+	winston.info("Accepting tradeId", tradeId);
+
+	phantom.create(function(err,ph) {
+		_.each(cookies, function(cookieStr) {
+			var cookieDetails = splitCookie(cookieStr);
+			ph.addCookie({
+				'name': cookieDetails.name,
+				'value': cookieDetails.value,
+				'domain': 'steamcommunity.com',
+				'httponly': true,
+				'secure': false,
+				'expires': (new Date()).getTime() + (1000 * 60 * 60)
+			});
+		});
+
+		return ph.createPage(function(err,page) {
+			if (err) {
+				winston.error("Phantom create error", err);
+				return callback(err);
+			}
+
+			return page.open('http://steamcommunity.com/tradeoffer/' + tradeId + '/', function(err, status) {
+				if (err) {
+					winston.error("Phantom open error", err);
+					return callback(err);
+				}
+				winston.info("Opened trade offer site", status);
+
+				return page.evaluate(function() {
+					// $ is a non-jQuery library on the steam site
+					var readyButton = $J('#you_notready');
+					var confirmButton = $J('#trade_confirmbtn');
+
+					readyButton.click();
+					confirmButton.click();
+
+					return { readyButton: readyButton, confirmButton: confirmButton };
+				}, 
+				function(err, result) {
+					if (err) {
+						winston.error("Phantom evaluate error", err);
+						return callback(err);
+					}
+					winston.info("Accepted trade", tradeId);
+					ph.exit();
+					return callback(null);
+				});
+			});
+		});
+	});
+};
+
+var splitCookie = function(cookieStr) {
+	var index = cookieStr.indexOf("=");
+	var name = cookieStr.substr(0,index);
+	var value = cookieStr.substr(index+1);
+	return { name: name, value: value };
+};
+
+var cookieJar = function() {
+	var jar = request.jar();
+	_.each(cookies, function(cookieStr) {
+		winston.info("adding cookie to jar", cookieStr);
+		var reqCookie = request.cookie(cookieStr);
+		jar.add(reqCookie);
+	});
+	return jar;
 };
