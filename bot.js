@@ -261,19 +261,13 @@ bot.on('tradeOffers', function(numOffers) {
 		return;
 	}
 
-	if (respondingToTradeRequests) {
-		winston.info("Already responding to trades");
-		return;
-	}
-
 	if (!canTrade) {
 		winston.info("Can't accept trade offers yet");
 		return;
 	}
 	
 	// Wait a few seconds before responding
-	//temp Disabled until I know it works
-	//setTimeout(function() { acceptAllTradeOffers(); }, 2000);
+	setTimeout(function() { acceptAllTradeOffers(); }, 10000);
 });
 
 var parseInventoryLink = function(steamTrade, message, callback) {
@@ -402,7 +396,21 @@ var requestHistoryPage = function(pageNum, jar, results, callback) {
 	});
 };
 
+// NOTE: this doesn't yet block trade offers from people on the blacklist
+//TODO fix this if I ever block anyone
 var acceptAllTradeOffers = function() {
+
+	if (paused) {
+		winston.info("Paused, can't accept trade offers");
+		return;
+	}
+
+
+	if (respondingToTradeRequests) {
+		winston.info("Already responding to trade offers");
+		return;
+	}
+
 	respondingToTradeRequests = true;
 
 	var jar = cookieJar();
@@ -442,6 +450,7 @@ var acceptAllTradeOffers = function() {
 	});
 };
 
+// Regular posts to accept trade offers are 403 forbidden, so use PhantomJS to accept them through the Steam website
 var acceptTradeOffer = function(tradeId, callback) {
 	winston.info("Accepting tradeId", tradeId);
 
