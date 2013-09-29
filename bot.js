@@ -20,6 +20,7 @@ var cookies = null;
 var canTrade = false;
 var paused = false;
 var respondingToTradeRequests = false; // True when using PhantomJS to accept web-based trades
+var autoFriendRemoveTimeout = 60*60*1000; // 1 hour
 
 var sendInstructions = "If you want to give me something, offer it for trade then check ready and I'll check ready soon after. \
 Click Make Trade when you're sure you want to send me your items.";
@@ -31,13 +32,18 @@ var wrongLinkMessage = 'It looks like you selected "Copy Page URL", you need to 
 var badLinkMessage = 'I don\'t recognise that link. ' + takeInstructions;
 var itemNotFoundMessage = "I can't find that item, you may need to refresh my inventory page or try to copy the link again.";
 var welcomeMessage = "Hello! To give me your trash or get something from my inventory, invite me to trade and I'll give you instructions there. \
-Please remember to remove me from your friends list after you are done so that other people can trade with me. \
+Trade offers should also work but they don't work all the time. \
+Please remember to remove me from your friends list after you are done so that my friends list doesn't fill up, I will automatically remove you as a friend if you don't. \
 If you want to make trades later you can always re-add me.";
 var chatResponse = "Hello! To give me your trash or get something from my inventory, invite me to trade and I'll give you instructions there.";
 var pausedMessage = "Sorry, I can't trade right now. I'll set my status as Looking to Trade when I'm ready to accept requests again.";
 var notReadyMessage = "Sorry, I can't accept a trade request right now, wait a few minutes and try again.";
 var cantAddMessage = "Sorry, I can't add that item, it might not be tradable. If it's giftable you can leave a comment on my profile and I might gift it to you when I can.";
 var addedMessage = "Item added, click ready when you want to make the trade";
+
+// Turn on timestamps
+winston.remove(winston.transports.Console);
+winston.add(winston.transports.Console, {'timestamp':true});
 
 if (fs.existsSync(serversFile)) {
 	steam.servers = JSON.parse(fs.readFileSync(serversFile));
@@ -88,7 +94,7 @@ bot.on('servers', function(servers) {
 	fs.writeFile(serversFile, JSON.stringify(servers));
 });
 
-// Auto-accept friends
+// Auto-accept friends, auto-remove after autoFriendRemoveTimeout
 bot.on('friend', function(userId, relationship) { 
 	winston.info("friend event for " + userId + " type " + relationship);
 	if (relationship == steam.EFriendRelationship.PendingInvitee) {
@@ -97,8 +103,15 @@ bot.on('friend', function(userId, relationship) {
 		setTimeout(function() {
 			bot.sendMessage(userId, welcomeMessage);
 		}, 5000);
+		setTimeout(function() {
+			if (!_.contains(secrets.whitelist, userId) && userId != secrets.ownerId) {
+				winston.info("automatically removing " + userId + " as a friend");
+				bot.removeFriend(userId);
+			}
+		}, autoFriendRemoveTimeout);
 	}
 });
+
 
 bot.on('friendMsg', function(userId, message, entryType) { 
 	winston.info("friendMsg event for " + userId + " entryType " + entryType + " message " + message);
