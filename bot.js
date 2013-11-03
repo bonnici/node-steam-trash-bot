@@ -20,7 +20,7 @@ var cookies = null;
 var canTrade = false;
 var paused = false;
 var respondingToTradeRequests = false; // True when using PhantomJS to accept web-based trades
-var autoFriendRemoveTimeout = 60*60*1000; // 1 hour
+var autoFriendRemoveTimeout = 24*60*60*1000; // 1 day
 
 var sendInstructions = "If you want to give me something, offer it for trade then check ready and I'll check ready soon after. \
 Click Make Trade when you're sure you want to send me your items.";
@@ -467,54 +467,75 @@ var acceptAllTradeOffers = function() {
 var acceptTradeOffer = function(tradeId, callback) {
 	winston.info("Accepting tradeId", tradeId);
 
-	phantom.create(function(err,ph) {
-		_.each(cookies, function(cookieStr) {
-			var cookieDetails = splitCookie(cookieStr);
-			ph.addCookie({
-				'name': cookieDetails.name,
-				'value': cookieDetails.value,
-				'domain': 'steamcommunity.com',
-				'httponly': true,
-				'secure': false,
-				'expires': (new Date()).getTime() + (1000 * 60 * 60)
+	try {
+		phantom.create(function(err,ph) {
+			_.each(cookies, function(cookieStr) {
+				var cookieDetails = splitCookie(cookieStr);
+				ph.addCookie({
+					'name': cookieDetails.name,
+					'value': cookieDetails.value,
+					'domain': 'steamcommunity.com',
+					'httponly': true,
+					'secure': false,
+					'expires': (new Date()).getTime() + (1000 * 60 * 60)
+				});
 			});
-		});
 
-		return ph.createPage(function(err,page) {
-			if (err) {
-				winston.error("Phantom create error", err);
-				return callback(err);
-			}
-
-			return page.open('http://steamcommunity.com/tradeoffer/' + tradeId + '/', function(err, status) {
+			return ph.createPage(function(err,page) {
 				if (err) {
-					winston.error("Phantom open error", err);
+					winston.error("Phantom create error", err);
 					return callback(err);
 				}
-				winston.info("Opened trade offer site", status);
 
-				return page.evaluate(function() {
-					// $ is a non-jQuery library on the steam site
-					var readyButton = $J('#you_notready');
-					var confirmButton = $J('#trade_confirmbtn');
-
-					readyButton.click();
-					confirmButton.click();
-
-					return { readyButton: readyButton, confirmButton: confirmButton };
-				}, 
-				function(err, result) {
+				return page.open('http://steamcommunity.com/tradeoffer/' + tradeId + '/', function(err, status) {
 					if (err) {
-						winston.error("Phantom evaluate error", err);
+						winston.error("Phantom open error", err);
 						return callback(err);
 					}
-					winston.info("Accepted trade", tradeId);
-					ph.exit();
-					return callback(null);
+					winston.info("Opened trade offer site", status);
+
+					return page.evaluate(function() {
+						var done = false;
+						
+						// Need to wait a while after clicking buttons
+						setTimeout(function() {
+							// $ is a non-jQuery library on the steam site
+							$J('#you_notready').click();
+							setTimeout(function() {
+								// "Yes this is a gift" button
+								giftButton = $J('.newmodal .btn_green_white_innerfade');
+								if (giftButton && giftButton.length > 0) {
+									giftButton.click();
+								}
+								setTimeout(function() {
+									$J('#trade_confirmbtn').click();
+									done = true;
+								}, 5000);
+							}, 5000);
+						}, 5000);
+
+						while (!done) {
+							// force wait
+						}
+
+						return { ok: true };
+					}, 
+					function(err, result) {
+						if (err) {
+							winston.error("Phantom evaluate error", err);
+							return callback(err);
+						}
+						winston.info("Accepted trade", tradeId);
+						ph.exit();
+						return callback(null);
+					});
 				});
 			});
 		});
-	});
+	}
+	catch(err) {
+		winston.error("Phantom exception: ", err);
+	}
 };
 
 var splitCookie = function(cookieStr) {
