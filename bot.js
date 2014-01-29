@@ -22,14 +22,16 @@ var paused = false;
 var respondingToTradeRequests = false; // True when using PhantomJS to accept web-based trades
 var autoFriendRemoveTimeout = 24*60*60*1000; // 1 day
 
-var sendInstructions = "If you want to give me something, offer it for trade then check ready and I'll check ready soon after. \
-Click Make Trade when you're sure you want to send me your items.";
-var takeInstructions = 'If you want me to send you something from my inventory, go to my inventory (http://steamcommunity.com/id/' + secrets.profileId + '/inventory/), \
-right click on what you want and select "Copy Link Address", then paste that into this trade chat window and I\'ll add the item. Check ready then click Make Trade when you\'re happy with the offerings.';
+var sendInstructions1 = "If you want to give me something, offer it for trade, check ready, and I'll check ready soon after.";
+var sendInstructions2 = "Click Make Trade when you're sure you want to send me your items.";
+var takeInstructions1 = "If you want me to send you something from my inventory, go to my inventory:";
+var takeInstructions2 = 'http://steamcommunity.com/id/' + secrets.profileId + '/inventory/ ,';
+var takeInstructions3 = 'then right click on what you want and select "Copy Link Address", then paste that into this trade';
+var takeInstructions4 = 'chat window and I\'ll add the item. Check ready then click Make Trade when you\'re ready.';
 var tradeCompleteMessage = "Trade complete! Please remember to remove me from your friends list if you don't want to make any more trades so that other \
 people can trade with me. If you want to make trades later you can always re-add me.";
 var wrongLinkMessage = 'It looks like you selected "Copy Page URL", you need to select "Copy Link Address"';
-var badLinkMessage = 'I don\'t recognise that link. ' + takeInstructions;
+var badLinkMessage = 'I don\'t recognise that link.';
 var itemNotFoundMessage = "I can't find that item, you may need to refresh my inventory page or try to copy the link again.";
 var welcomeMessage = "Hello! To give me your trash or get something from my inventory, invite me to trade and I'll give you instructions there. \
 Trade offers should also work but they don't work all the time. \
@@ -38,7 +40,7 @@ If you want to make trades later you can always re-add me.";
 var chatResponse = "Hello! To give me your trash or get something from my inventory, invite me to trade and I'll give you instructions there.";
 var pausedMessage = "Sorry, I can't trade right now. I'll set my status as Looking to Trade when I'm ready to accept requests again.";
 var notReadyMessage = "Sorry, I can't accept a trade request right now, wait a few minutes and try again.";
-var cantAddMessage = "Sorry, I can't add that item, it might not be tradable. If it's giftable you can leave a comment on my profile and I might gift it to you when I can.";
+var cantAddMessage = "Sorry, I can't add that item, it might not be tradable.";
 var addedMessage = "Item added, click ready when you want to make the trade";
 
 // Turn on timestamps
@@ -209,59 +211,71 @@ bot.on('sessionStart', function(steamId) {
 
 		steamTrade.open(steamId, function() {
 			if (!paused) {
-				bot.setPersonaState(steam.EPersonaState.Away);
+				bot.setPersonaState(steam.EPersonaState.Busy);
 			}
 
 			winston.info("steamTrade opened with " + steamId);
-			steamTrade.chatMsg(sendInstructions, function() {
-				steamTrade.chatMsg(takeInstructions, function() {
-					winston.info("Instruction messages sent to " + steamId);
+			steamTrade.chatMsg(sendInstructions1, function() {
+			steamTrade.chatMsg(sendInstructions2, function() {
+			steamTrade.chatMsg(takeInstructions1, function() {
+			steamTrade.chatMsg(takeInstructions2, function() {
+			steamTrade.chatMsg(takeInstructions3, function() {
+			steamTrade.chatMsg(takeInstructions4, function() {
+				winston.info("Instruction messages sent to " + steamId);
 
-					steamTrade.on('ready', function() {
-						winston.info("User is ready to trade " + steamId);
-						readyUp(steamTrade, steamId);
-					});
-
-					steamTrade.on('chatMsg', function(message) {
-						winston.info("chatMsg from " + steamId, message);
-						if (message.indexOf('http://steamcommunity.com/id/' + secrets.profileId + '/inventory') != 0) {
-							winston.info("Bad link");
-							steamTrade.chatMsg(badLinkMessage);
-						}
-						else if (message == 'http://steamcommunity.com/id/'  + secrets.profileId +  '/inventory/') {
-							winston.info("Wrong link");
-							steamTrade.chatMsg(wrongLinkMessage);
-						}
-						else {
-							parseInventoryLink(steamTrade, message, function(item) {
-								if (!item) {
-									winston.info("No item retuned");
-									steamTrade.chatMsg(itemNotFoundMessage);
-								}
-								else {
-									steamTrade.addItems([item], function(res) {
-										if (!res || res.length < 1 || res[0].error) {
-											steamTrade.chatMsg(cantAddMessage);
-										}
-										else {
-											steamTrade.chatMsg(addedMessage);
-										}
-									});
-								}
-							});
-						}
-					});
-
-					steamTrade.on('end', function(status, getItems) {
-						winston.info("Trade ended with status " + status);
-						if (!paused) {
-							bot.setPersonaState(steam.EPersonaState.LookingToTrade);
-						}
-						if (status == 'complete') {
-							bot.sendMessage(steamId, tradeCompleteMessage);
-						}
-					});
+				steamTrade.on('ready', function() {
+					winston.info("User is ready to trade " + steamId);
+					readyUp(steamTrade, steamId);
 				});
+
+				steamTrade.on('chatMsg', function(message) {
+					winston.info("chatMsg from " + steamId, message);
+					if (message.indexOf('http://steamcommunity.com/id/' + secrets.profileId + '/inventory') != 0) {
+						winston.info("Bad link");
+						steamTrade.chatMsg(badLinkMessage);
+					}
+					else if (message == 'http://steamcommunity.com/id/'  + secrets.profileId +  '/inventory/') {
+						winston.info("Wrong link");
+						steamTrade.chatMsg(wrongLinkMessage, function() {
+						steamTrade.chatMsg(takeInstructions1, function() {
+						steamTrade.chatMsg(takeInstructions2, function() {
+						steamTrade.chatMsg(takeInstructions3, function() {
+						steamTrade.chatMsg(takeInstructions4) }) }) }) }); 
+					}
+					else {
+						parseInventoryLink(steamTrade, message, function(item) {
+							if (!item) {
+								winston.info("No item retuned");
+								steamTrade.chatMsg(itemNotFoundMessage);
+							}
+							else {
+								steamTrade.addItems([item], function(res) {
+									if (!res || res.length < 1 || res[0].error) {
+										steamTrade.chatMsg(cantAddMessage);
+									}
+									else {
+										steamTrade.chatMsg(addedMessage);
+									}
+								});
+							}
+						});
+					}
+				});
+
+				steamTrade.on('end', function(status, getItems) {
+					winston.info("Trade ended with status " + status);
+					if (!paused) {
+						bot.setPersonaState(steam.EPersonaState.LookingToTrade);
+					}
+					if (status == 'complete') {
+						bot.sendMessage(steamId, tradeCompleteMessage);
+					}
+				});
+			});
+			});
+			});
+			});
+			});
 			});
 		});
 	}
