@@ -143,6 +143,12 @@ bot.on('friendMsg', function(userId, message, entryType) {
 			case 'offers':
 				acceptAllTradeOffers();
 				return;
+			case 'unfriend':
+				removeAllFriends();
+				return;
+			case 'friend':
+				addPendingFriends();
+				return;
 			default: 
 				bot.sendMessage(userId, "Unrecognized command");
 				return;
@@ -550,6 +556,26 @@ var acceptTradeOffer = function(tradeId, callback) {
 	catch(err) {
 		winston.error("Phantom exception: ", err);
 	}
+};
+
+var removeAllFriends = function() {
+	_.each(bot.friends, function(relationship, friendId) {
+		if (relationship == steam.EFriendRelationship.Friend 
+			&& !_.contains(secrets.whitelist, friendId) && friendId != secrets.ownerId) {
+
+			winston.info("Removing friend with ID " + friendId);
+			bot.removeFriend(friendId);
+		}
+	});
+};
+
+var addPendingFriends = function() {
+	_.each(bot.friends, function(relationship, friendId) {
+		if (relationship == steam.EFriendRelationship.RequestInitiator) {
+			winston.info("Adding friend with ID " + friendId);
+			bot.addFriend(friendId);
+		}
+	});
 };
 
 var splitCookie = function(cookieStr) {
