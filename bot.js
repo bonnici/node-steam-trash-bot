@@ -20,7 +20,7 @@ var cookies = null;
 var canTrade = false;
 var paused = false;
 var respondingToTradeRequests = false; // True when using PhantomJS to accept web-based trades
-var autoFriendRemoveTimeout = 24*60*60*1000; // 1 day
+var autoFriendRemoveTimeout = 6*60*60*1000; // 6 hours
 
 var sendInstructions1 = "If you want to give me something, offer it for trade, check ready, and I'll check ready soon after.";
 var sendInstructions2 = "Click Make Trade when you're sure you want to send me your items.";
@@ -99,7 +99,7 @@ bot.on('servers', function(servers) {
 // Auto-accept friends, auto-remove after autoFriendRemoveTimeout
 bot.on('friend', function(userId, relationship) { 
 	winston.info("friend event for " + userId + " type " + relationship);
-	if (relationship == steam.EFriendRelationship.PendingInvitee && !_.contains(secrets.blacklist, steamId)) {
+	if (relationship == steam.EFriendRelationship.PendingInvitee && !_.contains(secrets.blacklist, userId)) {
 		winston.info("added " + userId + " as a friend");
 		bot.addFriend(userId);
 		setTimeout(function() {
@@ -576,7 +576,8 @@ var removeAllFriends = function() {
 
 var addPendingFriends = function() {
 	_.each(bot.friends, function(relationship, friendId) {
-		if (relationship == steam.EFriendRelationship.RequestInitiator && !_.contains(secrets.blacklist, steamId)) {
+		if (relationship == steam.EFriendRelationship.RequestRecipient && !_.contains(secrets.blacklist, friendId)) {
+
 			winston.info("Adding friend with ID " + friendId);
 			bot.addFriend(friendId);
 		}
