@@ -99,7 +99,7 @@ bot.on('servers', function(servers) {
 // Auto-accept friends, auto-remove after autoFriendRemoveTimeout
 bot.on('friend', function(userId, relationship) { 
 	winston.info("friend event for " + userId + " type " + relationship);
-	if (relationship == steam.EFriendRelationship.PendingInvitee) {
+	if (relationship == steam.EFriendRelationship.PendingInvitee && !_.contains(secrets.blacklist, steamId)) {
 		winston.info("added " + userId + " as a friend");
 		bot.addFriend(userId);
 		setTimeout(function() {
@@ -466,9 +466,14 @@ var acceptAllTradeOffers = function() {
 			var active = $elem.find('.tradeoffer_footer_actions').length > 0;
 			var id = $elem.attr('id');
 
-			winston.info("Found " + (active ? "active" : "inactive") + " trade request with ID:" , id);
+			// Use report flag to find ID of user who sent request
+			// E.g. javascript:ReportTradeScam( '76561198099219762', "TrashBot" );
+			var reportLink = $elem.find('a.btn_report').attr('href');
+			var offererId = findSteamIdInReportLink(reportLink) ;
 
-			if (active) {
+			winston.info("Found " + (active ? "active" : "inactive") + " trade request from " + offererId + " with ID:" , id);
+
+			if (active && !_.contains(secrets.blacklist, offererId)) {
 				var tradeId = id.replace('tradeofferid_', '');
 				if (tradeId) {
 					tradeIds.push(tradeId);
@@ -571,7 +576,7 @@ var removeAllFriends = function() {
 
 var addPendingFriends = function() {
 	_.each(bot.friends, function(relationship, friendId) {
-		if (relationship == steam.EFriendRelationship.RequestInitiator) {
+		if (relationship == steam.EFriendRelationship.RequestInitiator && !_.contains(secrets.blacklist, steamId)) {
 			winston.info("Adding friend with ID " + friendId);
 			bot.addFriend(friendId);
 		}
@@ -593,4 +598,10 @@ var cookieJar = function() {
 		jar.add(reqCookie);
 	});
 	return jar;
+};
+
+var findSteamIdInReportLink = function(reportLink) {
+	var re = /javascript:ReportTradeScam\(\s*'(\d+)'/;
+	var match = reportLink.match(re);
+	return match && match.length > 0 ? match[1] : undefined;
 };
