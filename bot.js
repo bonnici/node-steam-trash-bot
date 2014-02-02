@@ -137,8 +137,11 @@ bot.on('friendMsg', function(userId, message, entryType) {
 				bot.setPersonaState(steam.EPersonaState.LookingToTrade);
 				winston.info("UNPAUSED");
 				return;
+			case 'export anon':
+				getInventoryHistory(true);
+				return;
 			case 'export':
-				getInventoryHistory();
+				getInventoryHistory(false);
 				return;
 			case 'offers':
 				acceptAllTradeOffers();
@@ -355,21 +358,21 @@ var readyUp = function(steamTrade, steamId) {
 	});
 }
 
-var getInventoryHistory = function() {
+var getInventoryHistory = function(anonymous) {
 	var jar = cookieJar();
 	var results = [];	
 
 	requestHistoryPage(1, jar, results, function() {
-		fs.writeFileSync('trades.csv', '"Trade ID","Date","Time","Encrypted User","Direction","Item"\n');
+		fs.writeFileSync('trades.csv', '"Trade ID","Date","Time",' + (anonymous ? "Encrypted User" : "User") + ',"Direction","Item"\n');
 
 		_.each(results, function(historyItem) {
 			winston.info("historyItem", historyItem);
-			fs.appendFileSync('trades.csv', formatHistoryItem(historyItem));
+			fs.appendFileSync('trades.csv', formatHistoryItem(historyItem, anonymous));
 		});
 	});
 };
 
-var formatHistoryItem = function(historyItem) {
+var formatHistoryItem = function(historyItem, anonymous) {
 	var hmac = crypto.createHmac("sha1", secrets.hmacSecret);
 	hmac.update(historyItem.user);
 	encryptedUser = hmac.digest("hex");
@@ -377,7 +380,7 @@ var formatHistoryItem = function(historyItem) {
 	var row = '"' + historyItem.tradeId + '",';
 	row += '"' + historyItem.date + '",';
 	row += '"' + historyItem.time + '",';
-	row += '"' + encryptedUser + '",';
+	row += '"' + (anonymous ? encryptedUser : historyItem.user) + '",';
 	row += '"' + historyItem.type + '",';
 	row += '"' + historyItem.item + '"\n';
 
