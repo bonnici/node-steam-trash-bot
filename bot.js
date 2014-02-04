@@ -7,20 +7,21 @@ var winston = require('winston');
 var request = require('request');
 var cheerio = require('cheerio');
 var uuid = require('node-uuid');
-var phantom = require('node-phantom');
-var async = require('async');
 var _ = require('underscore');
+var spawn = require('child_process');
 
 var secrets = require('./secrets.js').secrets;
 
 var serversFile = 'servers';
 var sentryFile = 'sentry';
+var cookieFile = 'cookies';
 var webSessionId = null;
 var cookies = null;
 var canTrade = false;
 var paused = false;
-var respondingToTradeRequests = false; // True when using PhantomJS to accept web-based trades
+var respondingToTradeRequests = false; // True when using CasperJS to accept web-based trades
 var autoFriendRemoveTimeout = 6*60*60*1000; // 6 hours
+var acceptTradeOfferTimeout = 5*60*1000; // 5 mintues
 
 var sendInstructions1 = "If you want to give me something, offer it for trade, check ready, and I'll check ready soon after.";
 var sendInstructions2 = "Click Make Trade when you're sure you want to send me your items.";
@@ -193,6 +194,7 @@ bot.on('webSessionID', function(sessionId) {
 	bot.webLogOn(function(newCookies) {
 		winston.info("webLogOn returned " + newCookies);
 		cookies = newCookies;
+		storeCookieFile();
 
 		if (!paused) {
 			bot.setPersonaState(steam.EPersonaState.LookingToTrade);
@@ -432,138 +434,31 @@ var requestHistoryPage = function(pageNum, jar, results, callback) {
 	});
 };
 
-// NOTE: this doesn't yet block trade offers from people on the blacklist
-//TODO fix this if I ever block anyone
 var acceptAllTradeOffers = function() {
-
 	if (paused) {
 		winston.info("Paused, can't accept trade offers");
 		return;
 	}
-
 
 	if (respondingToTradeRequests) {
 		winston.info("Already responding to trade offers");
 		return;
 	}
 
+	// Just wait a while minutes before accepting trade again, 
+	// can't set to false on spawn exit since it exits immediately and runs in the background
 	respondingToTradeRequests = true;
+	setTimeout(function() { respondingToTradeRequests = false; }, acceptTradeOfferTimeout);
 
-	var jar = cookieJar();
-	var url = 'http://steamcommunity.com/id/' + secrets.profileId + '/tradeoffers/';
-	winston.info("requesting page " + url);
+	var offerCmd = spawn.spawn('cmd.exe', ['/c', 'casperjs accept-trade-offers.js']);
 
-	request({ url: url, jar: jar }, function (error, response, body) {
-		if (error) {
-			winston.error("tradeoffers request error", error);
-			respondingToTradeRequests = false;
-			return;
-		}
-
-		$ = cheerio.load(body);
-
-		var tradeIds = [];
-		$('.tradeoffer').each(function(i, elem) {
-			var $elem = $(elem);
-
-			var active = $elem.find('.tradeoffer_footer_actions').length > 0;
-			var id = $elem.attr('id');
-
-			// Use report flag to find ID of user who sent request
-			// E.g. javascript:ReportTradeScam( '76561198099219762', "TrashBot" );
-			var reportLink = $elem.find('a.btn_report').attr('href');
-			var offererId = findSteamIdInReportLink(reportLink) ;
-
-			winston.info("Found " + (active ? "active" : "inactive") + " trade request from " + offererId + " with ID:" , id);
-
-			if (active && !_.contains(secrets.blacklist, offererId)) {
-				var tradeId = id.replace('tradeofferid_', '');
-				if (tradeId) {
-					tradeIds.push(tradeId);
-				}
-			}
-		});
-
-		async.eachSeries(tradeIds, acceptTradeOffer, function(err) { 
-			winston.info("Finished accepting trade offers with err", err)
-			respondingToTradeRequests = false; 
-		});
+	offerCmd.stdout.on('data', function (data) {
+		winston.info('offerCmd stdout: ' + data);
 	});
-};
 
-// Regular posts to accept trade offers are 403 forbidden, so use PhantomJS to accept them through the Steam website
-var acceptTradeOffer = function(tradeId, callback) {
-	winston.info("Accepting tradeId", tradeId);
-
-	try {
-		phantom.create(function(err,ph) {
-			_.each(cookies, function(cookieStr) {
-				var cookieDetails = splitCookie(cookieStr);
-				ph.addCookie({
-					'name': cookieDetails.name,
-					'value': cookieDetails.value,
-					'domain': 'steamcommunity.com',
-					'httponly': true,
-					'secure': false,
-					'expires': (new Date()).getTime() + (1000 * 60 * 60)
-				});
-			});
-
-			return ph.createPage(function(err,page) {
-				if (err) {
-					winston.error("Phantom create error", err);
-					return callback(err);
-				}
-
-				return page.open('http://steamcommunity.com/tradeoffer/' + tradeId + '/', function(err, status) {
-					if (err) {
-						winston.error("Phantom open error", err);
-						return callback(err);
-					}
-					winston.info("Opened trade offer site", status);
-
-					return page.evaluate(function() {
-						var done = false;
-						
-						// Need to wait a while after clicking buttons
-						setTimeout(function() {
-							// $ is a non-jQuery library on the steam site
-							$J('#you_notready').click();
-							setTimeout(function() {
-								// "Yes this is a gift" button
-								giftButton = $J('.newmodal .btn_green_white_innerfade');
-								if (giftButton && giftButton.length > 0) {
-									giftButton.click();
-								}
-								setTimeout(function() {
-									$J('#trade_confirmbtn').click();
-									done = true;
-								}, 5000);
-							}, 5000);
-						}, 5000);
-
-						while (!done) {
-							// force wait
-						}
-
-						return { ok: true };
-					}, 
-					function(err, result) {
-						if (err) {
-							winston.error("Phantom evaluate error", err);
-							return callback(err);
-						}
-						winston.info("Accepted trade", tradeId);
-						ph.exit();
-						return callback(null);
-					});
-				});
-			});
-		});
-	}
-	catch(err) {
-		winston.error("Phantom exception: ", err);
-	}
+	offerCmd.stderr.on('data', function (data) {
+		winston.error('offerCmd stderr: ' + data);
+	});
 };
 
 var removeAllFriends = function() {
@@ -608,4 +503,9 @@ var findSteamIdInReportLink = function(reportLink) {
 	var re = /javascript:ReportTradeScam\(\s*'(\d+)'/;
 	var match = reportLink.match(re);
 	return match && match.length > 0 ? match[1] : undefined;
+};
+
+var storeCookieFile = function() {
+	var cookieStr = cookies.join('; ');
+	fs.writeFile(cookieFile, cookieStr);
 };
