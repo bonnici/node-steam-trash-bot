@@ -445,7 +445,7 @@ var acceptAllTradeOffers = function() {
 		return;
 	}
 
-	// Just wait a while minutes before accepting trade again, 
+	// Just wait a while before accepting trade again, 
 	// can't set to false on spawn exit since it exits immediately and runs in the background
 	respondingToTradeRequests = true;
 	setTimeout(function() { respondingToTradeRequests = false; }, acceptTradeOfferTimeout);

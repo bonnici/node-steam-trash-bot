@@ -14,4 +14,4 @@ This is a Steam bot that will automatically accept friend requests, and will tak
 		hmacSecret: 'random string used to encode usernames during export'
 	};
 
-The bot will need to have Steam Guard enabled for 15 days before it will be able to respond to trade requests, and it may also need to own a game. Also to accept "offline" trade offers, [PhantomJS](http://phantomjs.org/) must be installed and set up. The bot will automatically remove newly added friends after a while unless that user is the owner or on the whitelist.
+The bot will need to have Steam Guard enabled for 15 days before it will be able to respond to trade requests, and it may also need to own a game. Also to accept "offline" trade offers, [PhantomJS](http://phantomjs.org/) and [CasperJS](http://casperjs.org/) must be installed and set up. The bot will automatically remove newly added friends after a while unless that user is the owner or on the whitelist.
