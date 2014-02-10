@@ -1,1 +1,0 @@
-supervisor -i . bot.js >> logs\log.txt 2>&1
