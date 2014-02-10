@@ -445,20 +445,42 @@ var acceptAllTradeOffers = function() {
 		return;
 	}
 
-	// Just wait a while before accepting trade again, 
-	// can't set to false on spawn exit since it exits immediately and runs in the background
 	respondingToTradeRequests = true;
-	setTimeout(function() { respondingToTradeRequests = false; }, acceptTradeOfferTimeout);
 
-	var offerCmd = spawn.spawn('cmd.exe', ['/c', 'casperjs accept-trade-offers.js']);
+	// In windows, just wait a while before accepting trade again, we can't set to false on spawn 
+	// exit since the cmd.exe spawn exits immediately and runs in the background
+	if (secrets.environment == 'windows') {
+		setTimeout(function() { respondingToTradeRequests = false; }, acceptTradeOfferTimeout);
+	}
 
-	offerCmd.stdout.on('data', function (data) {
-		winston.info('offerCmd stdout: ' + data);
-	});
+	if (secrets.environment == 'windows') {
+		var offerCmd = spawn.spawn('cmd.exe', ['/c', 'casperjs accept-trade-offers.js']);
+	}
+	else if (secrets.environment == 'linux') {
+		var offerCmd = spawn.spawn('casperjs', ['accept-trade-offers.js']);
+	}
 
-	offerCmd.stderr.on('data', function (data) {
-		winston.error('offerCmd stderr: ' + data);
-	});
+	if (offerCmd) {
+		offerCmd.stdout.on('data', function (data) {
+			winston.info('offerCmd stdout: ' + data);
+		});
+
+		offerCmd.stderr.on('data', function (data) {
+			winston.error('offerCmd stderr: ' + data);
+		});
+
+		offerCmd.on('exit', function (data) {
+			winston.info('offerCmd exited: ' + data);
+
+			// In linux we can watch for the process exit here
+			if (secrets.environment == 'linux') {
+				respondingToTradeRequests = false;
+			}
+		});
+	}
+	else {
+		respondingToTradeRequests = false;
+	}
 };
 
 var removeAllFriends = function() {
