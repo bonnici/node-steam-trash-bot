@@ -145,7 +145,7 @@ bot.on('friendMsg', function(userId, message, entryType) {
 				getInventoryHistory(false);
 				return;
 			case 'offers':
-				acceptAllTradeOffers();
+				acceptAllTradeOffers(true);
 				return;
 			case 'unfriend':
 				removeAllFriends();
@@ -305,7 +305,7 @@ bot.on('tradeOffers', function(numOffers) {
 	}
 	
 	// Wait a few seconds before responding
-	setTimeout(function() { acceptAllTradeOffers(); }, 10000);
+	setTimeout(function() { acceptAllTradeOffers(false); }, 10000);
 });
 
 var parseInventoryLink = function(steamTrade, message, callback) {
@@ -434,13 +434,13 @@ var requestHistoryPage = function(pageNum, jar, results, callback) {
 	});
 };
 
-var acceptAllTradeOffers = function() {
-	if (paused) {
+var acceptAllTradeOffers = function(force) {
+	if (paused && !force) {
 		winston.info("Paused, can't accept trade offers");
 		return;
 	}
 
-	if (respondingToTradeRequests) {
+	if (respondingToTradeRequests && !force) {
 		winston.info("Already responding to trade offers");
 		return;
 	}

@@ -8,10 +8,11 @@ var numCaptures = 0;
 var cookieStr = fs.read(cookieFile);
 var cookies = cookieStr.split('; ');
 
-var casper = require('casper').create({
-	verbose: true,
-	logLevel: "debug"
-});
+var casper = require('casper').create();
+//var casper = require('casper').create({
+//	verbose: true,
+//	logLevel: "debug"
+//});
 
 casper.on('remote.message', function(message) {
     console.log(message);
