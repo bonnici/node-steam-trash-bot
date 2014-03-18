@@ -20,7 +20,7 @@ The bot will need to have Steam Guard enabled for 15 days before it will be able
 First time setup:
 * Create an account and turn Steam Guard on
 * Set all config and leave guardCode set to null
-* Try to run bot.js, you'll get a loginError 65 and a guard code will be emailed to you
+* Try to run bot.js, you'll get a login error and a guard code will be emailed to you
 * Set guardCode to the code that's sent you and run bot.js again
 * Try to trade with the bot, make both a trade offer and a trade request
 * These will fail but will start the 15 day countdown, so everything should start working 15 days later
