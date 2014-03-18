@@ -16,3 +16,11 @@ This is a Steam bot that will automatically accept friend requests, and will tak
 	};
 
 The bot will need to have Steam Guard enabled for 15 days before it will be able to respond to trade requests, and it may also need to own a game. Also to accept "offline" trade offers, [PhantomJS](http://phantomjs.org/) and [CasperJS](http://casperjs.org/) must be installed and set up. The bot will automatically remove newly added friends after a while unless that user is the owner or on the whitelist.
+
+First time setup:
+* Create an account and turn Steam Guard on
+* Set all config and leave guardCode set to null
+* Try to run bot.js, you'll get a loginError 65 and a guard code will be emailed to you
+* Set guardCode to the code that's sent you and run bot.js again
+* Try to trade with the bot, make both a trade offer and a trade request
+* These will fail but will start the 15 day countdown, so everything should start working 15 days later
