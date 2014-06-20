@@ -34,10 +34,10 @@ people can trade with me. If you want to make trades later you can always re-add
 var wrongLinkMessage = 'It looks like you selected "Copy Page URL", you need to select "Copy Link Address"';
 var badLinkMessage = 'I don\'t recognise that link.';
 var itemNotFoundMessage = "I can't find that item, you may need to refresh my inventory page or try to copy the link again.";
-var welcomeMessage = "Hello! To give me your trash or get something from my inventory, invite me to trade and I'll give you instructions there. \
-Trade offers should also work but they don't work all the time. \
-Please remember to remove me from your friends list after you are done so that my friends list doesn't fill up, I will automatically remove you as a friend if you don't. \
+var welcomeMessage1 = "Hello! To give me your trash or get something from my inventory, send me a trade offer or invite me to trade and I'll give you instructions there. \
+Please remember to remove me from your friends list after you are done so that my friends list doesn't fill up. \
 If you want to make trades later you can always re-add me.";
+var welcomeMessage2 = "Beware of people using this bot for scams, it will take anything from anyone and give anything to anyone, don't believe anyone who says otherwise!";
 var chatResponse = "Hello! To give me your trash or get something from my inventory, invite me to trade and I'll give you instructions there.";
 var pausedMessage = "Sorry, I can't trade right now. I'll set my status as Looking to Trade when I'm ready to accept requests again.";
 var notReadyMessage = "Sorry, I can't accept a trade request right now, wait a few minutes and try again.";
@@ -104,7 +104,10 @@ bot.on('friend', function(userId, relationship) {
 		winston.info("added " + userId + " as a friend");
 		bot.addFriend(userId);
 		setTimeout(function() {
-			bot.sendMessage(userId, welcomeMessage);
+			bot.sendMessage(userId, welcomeMessage1);
+			setTimeout(function() {
+				bot.sendMessage(userId, welcomeMessage2);
+			}, 1000);
 		}, 5000);
 		setTimeout(function() {
 			if (!_.contains(secrets.whitelist, userId) && userId != secrets.ownerId) {
