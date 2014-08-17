@@ -22,6 +22,9 @@ var paused = false;
 var respondingToTradeRequests = false; // True when using CasperJS to accept web-based trades
 var autoFriendRemoveTimeout = 6*60*60*1000; // 6 hours
 var acceptTradeOfferTimeout = 5*60*1000; // 5 mintues
+var maxTradeHistoryPage = 300;
+var maxTradeRequestMessages = 50;
+
 
 var sendInstructions1 = "If you want to give me something, offer it for trade, check ready, and I'll check ready soon after.";
 var sendInstructions2 = "Click Make Trade when you're sure you want to send me your items.";
@@ -162,7 +165,8 @@ bot.on('friendMsg', function(userId, message, entryType) {
 			}
 		}
 		else {
-			bot.sendMessage(userId, chatResponse);
+			// disable replies since it can cause loop if other bots do the same
+			//bot.sendMessage(userId, chatResponse);
 		}
 	}
 });
@@ -236,6 +240,7 @@ bot.on('sessionStart', function(steamId) {
 			steamTrade.chatMsg(takeInstructions3, function() {
 			steamTrade.chatMsg(takeInstructions4, function() {
 				winston.info("Instruction messages sent to " + steamId);
+				var numMessages = 0;
 
 				steamTrade.on('ready', function() {
 					winston.info("User is ready to trade " + steamId);
@@ -243,36 +248,41 @@ bot.on('sessionStart', function(steamId) {
 				});
 
 				steamTrade.on('chatMsg', function(message) {
-					winston.info("chatMsg from " + steamId, message);
-					if (message.indexOf('http://steamcommunity.com/id/' + secrets.profileId + '/inventory') != 0) {
-						winston.info("Bad link");
-						steamTrade.chatMsg(badLinkMessage);
-					}
-					else if (message == 'http://steamcommunity.com/id/'  + secrets.profileId +  '/inventory/') {
-						winston.info("Wrong link");
-						steamTrade.chatMsg(wrongLinkMessage, function() {
-						steamTrade.chatMsg(takeInstructions1, function() {
-						steamTrade.chatMsg(takeInstructions2, function() {
-						steamTrade.chatMsg(takeInstructions3, function() {
-						steamTrade.chatMsg(takeInstructions4) }) }) }) }); 
-					}
-					else {
-						parseInventoryLink(steamTrade, message, function(item) {
-							if (!item) {
-								winston.info("No item retuned");
-								steamTrade.chatMsg(itemNotFoundMessage);
-							}
-							else {
-								steamTrade.addItems([item], function(res) {
-									if (!res || res.length < 1 || res[0].error) {
-										steamTrade.chatMsg(cantAddMessage);
-									}
-									else {
-										steamTrade.chatMsg(addedMessage);
-									}
-								});
-							}
-						});
+					numMessages++;
+
+					// Ignore spammy messages
+					if (numMessages < maxTradeRequestMessages) {
+						winston.info("chatMsg from " + steamId, message);
+						if (message.indexOf('http://steamcommunity.com/id/' + secrets.profileId + '/inventory') != 0) {
+							winston.info("Bad link");
+							steamTrade.chatMsg(badLinkMessage);
+						}
+						else if (message == 'http://steamcommunity.com/id/'  + secrets.profileId +  '/inventory/') {
+							winston.info("Wrong link");
+							steamTrade.chatMsg(wrongLinkMessage, function() {
+							steamTrade.chatMsg(takeInstructions1, function() {
+							steamTrade.chatMsg(takeInstructions2, function() {
+							steamTrade.chatMsg(takeInstructions3, function() {
+							steamTrade.chatMsg(takeInstructions4) }) }) }) }); 
+						}
+						else {
+							parseInventoryLink(steamTrade, message, function(item) {
+								if (!item) {
+									winston.info("No item retuned");
+									steamTrade.chatMsg(itemNotFoundMessage);
+								}
+								else {
+									steamTrade.addItems([item], function(res) {
+										if (!res || res.length < 1 || res[0].error) {
+											steamTrade.chatMsg(cantAddMessage);
+										}
+										else {
+											steamTrade.chatMsg(addedMessage);
+										}
+									});
+								}
+							});
+						}
 					}
 				});
 
@@ -371,9 +381,11 @@ var getInventoryHistory = function(anonymous) {
 		fs.writeFileSync('trades.csv', '"Trade ID","Date","Time",' + (anonymous ? "Encrypted User" : "User") + ',"Direction","Item"\n');
 
 		_.each(results, function(historyItem) {
-			winston.info("historyItem", historyItem);
+			//winston.info("historyItem", historyItem);
 			fs.appendFileSync('trades.csv', formatHistoryItem(historyItem, anonymous));
 		});
+
+		winston.info("Finished exporting history");
 	});
 };
 
@@ -411,7 +423,7 @@ var requestHistoryPage = function(pageNum, jar, results, callback) {
 			});
 
 			$('.tradehistoryrow').each(function(i, elem) {
-				winston.info("processing row");
+				//winston.info("processing row");
 				var date = $(elem).find('.tradehistory_date').text();
 				var time = $(elem).find('.tradehistory_timestamp').text();
 				var user = $(elem).find('.tradehistory_event_description a').attr('href');
@@ -426,7 +438,7 @@ var requestHistoryPage = function(pageNum, jar, results, callback) {
 			});
 
 
-			if (lastPage) {
+			if (pageNum > maxTradeHistoryPage || lastPage) {
 				winston.info('got to last page');
 				return callback();
 			}
