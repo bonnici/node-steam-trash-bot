@@ -26,6 +26,8 @@ mongodb.connect(secrets.mongoUri, function (err, dbClient) {
 	// GET /user/<userId> - returns user record as JSON
 	app.get('/user/:userId', function (req, res) {
 		var userId = req.params.userId;
+		winston.info("GET /user/" + userId);
+
 		getCollection(dbClient, 'users', res, function(collection) {
 			collection.findOne({ _id: userId }, function (err, record) {
 				if (err) {
@@ -41,6 +43,8 @@ mongodb.connect(secrets.mongoUri, function (err, dbClient) {
 
 	// GET /users/friends - returns JSON list of all user details with isFriend set to true
 	app.get('/users/friends', function (req, res) {
+		winston.info("GET /users/friends");
+
 		getCollection(dbClient, 'users', res, function(collection) {
 			collection.find({ isFriend: true }).toArray(function (err, results) {
 				if (err) {
@@ -60,6 +64,8 @@ mongodb.connect(secrets.mongoUri, function (err, dbClient) {
 		var userId = req.params.userId;
 		//var day = req.params.day;
 		var day = moment().format('YYYY-MM-DD');
+		winston.info("GET /daily-trades/" + userId);
+
 		getCollection(dbClient, 'daily-trades', res, function(collection) {
 			collection.findOne({ userId: userId, day: day }, function (err, record) {
 				if (err) {
@@ -76,6 +82,8 @@ mongodb.connect(secrets.mongoUri, function (err, dbClient) {
 	// POST /user/<id>/added - updates user record: set isFriend to true, set lastAddedTime to now, increment numTimesAdded
 	app.post('/user/:userId/added', function (req, res) {
 		var userId = req.params.userId;
+		winston.info("POST /user/" + userId + "/added");
+
 		getCollection(dbClient, 'users', res, function(collection) {
 			var updates = { $set: { isFriend: true, lastAddedTime: new Date().getTime() }, $inc: { numTimesAdded: 1 } };
 			collection.update({ _id: userId }, updates, { upsert: true }, function (err) {
@@ -92,6 +100,8 @@ mongodb.connect(secrets.mongoUri, function (err, dbClient) {
 	// POST /user/<id>/removed - set isFriend to false
 	app.post('/user/:userId/removed', function (req, res) {
 		var userId = req.params.userId;
+		winston.info("POST /user/" + userId + "/removed");
+
 		getCollection(dbClient, 'users', res, function(collection) {
 			var updates = { $set: { isFriend: false } };
 			collection.update({ _id: userId }, updates, function (err) {
@@ -108,6 +118,8 @@ mongodb.connect(secrets.mongoUri, function (err, dbClient) {
 	// POST /user/<id>/trade-declined - update user record: increment numTradesDeclined
 	app.post('/user/:userId/trade-declined', function (req, res) {
 		var userId = req.params.userId;
+		winston.info("POST /user/" + userId + "/trade-declined");
+
 		getCollection(dbClient, 'users', res, function(collection) {
 			var updates = { $inc: { numTradesDeclined: 1 } };
 			collection.update({ _id: userId }, updates, function (err) {
@@ -124,6 +136,8 @@ mongodb.connect(secrets.mongoUri, function (err, dbClient) {
 	// POST /user/<id>/trade-accepted - update user record: increment numTradesAccepted
 	app.post('/user/:userId/trade-accepted', function (req, res) {
 		var userId = req.params.userId;
+		winston.info("POST /user/" + userId + "/trade-accepted");
+
 		getCollection(dbClient, 'users', res, function(collection) {
 			var updates = { $inc: { numTradesAccepted: 1 } };
 			collection.update({ _id: userId }, updates, function (err) {
@@ -146,6 +160,7 @@ mongodb.connect(secrets.mongoUri, function (err, dbClient) {
 		var tradeId = req.params.tradeId;
 		var itemId = req.params.itemId;
 		var wasClaimed = req.params.wasClaimed == 'true';
+		winston.info("POST /trade/" + userId + "/" + tradeId + "/" + "itemId" + "/" + wasClaimed);
 
 		var incUpdates = { $inc: {} };
 		if (wasClaimed) {
