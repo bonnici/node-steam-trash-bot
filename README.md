@@ -12,10 +12,14 @@ This is a Steam bot that will automatically accept friend requests, and will tak
 		blacklist: ['steam ID of user to block', 'another steam ID to block'],
 		whitelist: ['steam ID of user to keep as a friend', 'another steam ID of user to keep as a friend'],
 		hmacSecret: 'random string used to encode usernames during export',
-		environment: 'windows or linux, used to control how to spawn the CasperJS trade offer accepting process'
+		environment: 'windows or linux, used to control how to spawn the CasperJS trade offer accepting process',
+		mongoUpdaterPort: 3001, // Port to use for the mongo stat update server
+		mongoUri: 'mongodb://u:p@address:port/database' // Mongo URI to use when storing stats
 	};
 
 The bot will need to have Steam Guard enabled for 15 days before it will be able to respond to trade requests, and it may also need to own a game. Also to accept "offline" trade offers, [PhantomJS](http://phantomjs.org/) and [CasperJS](http://casperjs.org/) must be installed and set up. The bot will automatically remove newly added friends after a while unless that user is the owner or on the whitelist.
+
+Run the mongo-updater.js server to store historical trade details in MongoDB, if this isn't running you should get rid of the code that calls the server so there is no time wasted while waiting for the requests to fail.
 
 First time setup:
 * Create an account and turn Steam Guard on
