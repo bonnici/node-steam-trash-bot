@@ -15,8 +15,58 @@ var casper = require('casper').create();
 //});
 
 casper.on('remote.message', function(message) {
-    console.log(message);
+	console.log(message);
 });
+
+/*
+casper.start();
+
+casper.thenOpen('http://localhost:3001/user/asd/added', {
+	method: 'post',
+	data: {}
+}, function(param) {
+	if (param.status == 204) {
+		console.log("added");
+	} else {
+		console.log("added call failed");
+	}
+});
+
+casper.thenOpen('http://localhost:3001/user/asd/removed', {
+	method: 'post',
+	data: {}
+}, function(param) {
+	if (param.status == 204) {
+		console.log("removed");
+	} else {
+		console.log("removed call failed");
+	}
+});
+
+casper.thenOpen('http://localhost:3001/user/asd', {
+	method: 'get',
+	data: {}
+}, function(param) {
+	if (param.status == 200) {
+		var content = this.getPageContent();
+		console.log("user content", content);
+		try {
+			var obj = JSON.parse(content);
+			console.log("obj", obj);
+			console.log("obj.numTimesAdded", obj.numTimesAdded);
+			if (obj.isBlacklisted) {
+				console.log("user is blacklisted");
+			} else {
+				console.log("user is NOT blacklisted");
+			}
+		} catch (e) {
+			console.log("exception parsing json", e);
+		}
+	} else {
+		console.log("user call failed");
+	}
+});
+*/
 
 for (var i=0; i < cookies.length; i++) {
 	var cookieDetails = cookies[i].split("=");

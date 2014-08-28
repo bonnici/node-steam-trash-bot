@@ -159,6 +159,104 @@ bot.on('friendMsg', function(userId, message, entryType) {
 			case 'friend':
 				addPendingFriends();
 				return;
+
+			//TEMPORARY
+			case 'getuser':
+				request.get({ url: "http://localhost:3001/user/asd" }, function (error, response, body) {
+					if (error) {
+						winston.error("getuser error", error);
+					}
+					else {
+						var obj = JSON.parse(body);
+						winston.info("isBlacklisted", obj.isBlacklisted);
+					}
+				});
+				return;
+			case 'added':
+				request.post({ url: "http://localhost:3001/user/asd/added" }, function (error, response, body) {
+					if (error) {
+						winston.error("added error", error);
+					}
+					else {
+						winston.info("added user");
+					}
+				});
+				return;
+			case 'removed':
+				request.post({ url: "http://localhost:3001/user/asd/removed" }, function (error, response, body) {
+					if (error) {
+						winston.error("removed error", error);
+					}
+					else {
+						winston.info("removed user");
+					}
+				});
+				return;
+			case 'getfriends':
+				request.get({ url: "http://localhost:3001/users/friends" }, function (error, response, body) {
+					if (error) {
+						winston.error("getfriends error", error);
+					}
+					else {
+						var obj = JSON.parse(body);
+						winston.info("friends:");
+						for (var i = 0; i < obj.length; i++) {
+							winston.info("ID/lastAddedTime:", obj[i]._id, obj[i].lastAddedTime);
+						}
+					}
+				});
+				return;
+			case 'dailytrades':
+				request.get({ url: "http://localhost:3001/daily-trades/asd" }, function (error, response, body) {
+					if (error) {
+						winston.error("dailytrades error", error);
+					}
+					else {
+						var obj = JSON.parse(body);
+						if (obj) {
+							winston.info("dailytrades for " + obj.day + " " + obj.numItemsClaimed + "/" + obj.numItemsDonated);
+						} else {
+							winston.info("no dailytrades today");
+						}
+					}
+				});
+				return;
+			case 'tradeaccepted':
+				request.post({ url: "http://localhost:3001/user/asd/trade-accepted" }, function (error, response, body) {
+					if (error) {
+						winston.error("tradeaccepted error", error);
+					}
+					else {
+						winston.info("trade accepted");
+					}
+				});
+				return;
+			case 'tradedeclined':
+				request.post({ url: "http://localhost:3001/user/asd/trade-declined" }, function (error, response, body) {
+					if (error) {
+						winston.error("tradedeclined error", error);
+					}
+					else {
+						winston.info("trade declined");
+					}
+				});
+				return;
+			case 'trade':
+				var tradeId = "" + new Date().getTime();
+				var itemId = "" + new Date().getTime();
+				var wasClaimed = (new Date().getTime() % 2 > 0);
+				winston.info("Adding trade " + tradeId + " item " + itemId + " wasClaimed " + wasClaimed);
+				request.post({ url: "http://localhost:3001/trade/asd/" + tradeId + "/" + itemId + "/" + wasClaimed }, function (error, response, body) {
+					if (error) {
+						winston.error("trade error", error);
+					}
+					else {
+						winston.info("trade item added");
+					}
+				});
+				return;
+			//END TEMPORARY
+			
 			default: 
 				bot.sendMessage(userId, "Unrecognized command");
 				return;

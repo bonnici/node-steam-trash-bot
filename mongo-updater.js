@@ -54,10 +54,12 @@ mongodb.connect(secrets.mongoUri, function (err, dbClient) {
 		});
 	});
 
-	// GET /daily-trades/<id>/<day> - get daily trades record as JSON
-	app.get('/daily-trades/:userId/:day', function (req, res) {
+	// GET /daily-trades/<id> - get today's daily trades record as JSON
+	//app.get('/daily-trades/:userId/:day', function (req, res) {
+	app.get('/daily-trades/:userId', function (req, res) {
 		var userId = req.params.userId;
-		var day = req.params.day;
+		//var day = req.params.day;
+		var day = moment().format('YYYY-MM-DD');
 		getCollection(dbClient, 'daily-trades', res, function(collection) {
 			collection.findOne({ userId: userId, day: day }, function (err, record) {
 				if (err) {
@@ -76,7 +78,7 @@ mongodb.connect(secrets.mongoUri, function (err, dbClient) {
 		var userId = req.params.userId;
 		getCollection(dbClient, 'users', res, function(collection) {
 			var updates = { $set: { isFriend: true, lastAddedTime: new Date().getTime() }, $inc: { numTimesAdded: 1 } };
-			collection.update({ _id: userId }, updates, function (err) {
+			collection.update({ _id: userId }, updates, { upsert: true }, function (err) {
 				if (err) {
 					winston.error('Error updating added user details ' + userId + ':', err);
 					res.status(500).send('Error updating added user details ' + userId);
