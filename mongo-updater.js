@@ -8,6 +8,7 @@ var express = require('express');
 var winston = require('winston');
 var async = require('async');
 var moment = require('moment');
+var bodyParser = require('body-parser');
 
 var secrets = require('./secrets.js').secrets;
 
@@ -16,6 +17,7 @@ winston.remove(winston.transports.Console);
 winston.add(winston.transports.Console, winstonOpts);
 
 var app = express();
+app.use(bodyParser.json());
 
 mongodb.connect(secrets.mongoUri, function (err, dbClient) {
 	if (err) {
@@ -151,11 +153,13 @@ mongodb.connect(secrets.mongoUri, function (err, dbClient) {
 		});
 	});
 
-	// POST /trade/<userId>/<tradeId>/<itemId>/<wasClaimed> 
+	// POST /trade/<userId>/<tradeId>/<itemId>/<wasClaimed>
+	//  body contains JSON details: { name: "item name" }
 	//  - update trade record, set time to now
     //  - update user record, increment numItemsClaimed or numItemsDonated
     //  - update daily trades record, increment numItemsClaimed or numItemsDonated
 	app.post('/trade/:userId/:tradeId/:itemId/:wasClaimed', function (req, res) {
+
 		var userId = req.params.userId;
 		var tradeId = req.params.tradeId;
 		var itemId = req.params.itemId;
@@ -169,8 +173,6 @@ mongodb.connect(secrets.mongoUri, function (err, dbClient) {
 		else {
 			incUpdates['$inc'].numItemsDonated = 1;
 		}
-
-		var day = 
 
 		async.parallel([
 			function (callback) {
@@ -188,6 +190,9 @@ mongodb.connect(secrets.mongoUri, function (err, dbClient) {
 						itemId: itemId,
 						wasClaimed: wasClaimed
 					};
+					if (req.body && req.body.name) {
+						tradeRecord.itemName = req.body.name;
+					}
 					collection.insert(tradeRecord, callback);
 				});
 			},

@@ -25,7 +25,6 @@ var acceptTradeOfferTimeout = 5*60*1000; // 5 mintues
 var maxTradeHistoryPage = 300;
 var maxTradeRequestMessages = 50;
 
-
 var sendInstructions1 = "If you want to give me something, offer it for trade, check ready, and I'll check ready soon after.";
 var sendInstructions2 = "Click Make Trade when you're sure you want to send me your items.";
 var takeInstructions1 = "If you want me to send you something from my inventory, go to my inventory:";
@@ -46,6 +45,8 @@ var pausedMessage = "Sorry, I can't trade right now. I'll set my status as Looki
 var notReadyMessage = "Sorry, I can't accept a trade request right now, wait a few minutes and try again.";
 var cantAddMessage = "Sorry, I can't add that item, it might not be tradable.";
 var addedMessage = "Item added, click ready when you want to make the trade";
+
+var mongoUpdaterUrl = "http://localhost:" + secrets.mongoUpdaterPort;
 
 // Turn on timestamps
 winston.remove(winston.transports.Console);
@@ -105,6 +106,13 @@ bot.on('friend', function(userId, relationship) {
 	winston.info("friend event for " + userId + " type " + relationship);
 	if (relationship == steam.EFriendRelationship.PendingInvitee && !_.contains(secrets.blacklist, userId)) {
 		winston.info("added " + userId + " as a friend");
+
+		request.post({ url: mongoUpdaterUrl + "/user/" + userId + "/added" }, function (error, response, body) {
+			if (error) {
+				winston.error("Mongo error calling added", error);
+			}
+		});
+
 		bot.addFriend(userId);
 		setTimeout(function() {
 			bot.sendMessage(userId, welcomeMessage1);
@@ -255,6 +263,24 @@ bot.on('friendMsg', function(userId, message, entryType) {
 					}
 				});
 				return;
+			case 'tradebody':
+				var tradeId = "" + new Date().getTime();
+				var itemId = "" + new Date().getTime();
+				var wasClaimed = (new Date().getTime() % 2 > 0);
+				winston.info("Adding trade " + tradeId + " item " + itemId + " wasClaimed " + wasClaimed);
+				request.post(
+				{ 
+					url: "http://localhost:3001/trade/asd/" + tradeId + "/" + itemId + "/" + wasClaimed,
+					json: { name: "test name{}!@#!#$$%^^&*()*&;\'\"" }
+				}, function (error, response, body) {
+					if (error) {
+						winston.error("trade error", error);
+					}
+					else {
+						winston.info("trade item added");
+					}
+				});
+				return;
 			//END TEMPORARY
 			
 			default: 
@@ -339,6 +365,7 @@ bot.on('sessionStart', function(steamId) {
 			steamTrade.chatMsg(takeInstructions4, function() {
 				winston.info("Instruction messages sent to " + steamId);
 				var numMessages = 0;
+				var claimedItems = [];
 
 				steamTrade.on('ready', function() {
 					winston.info("User is ready to trade " + steamId);
@@ -370,11 +397,13 @@ bot.on('sessionStart', function(steamId) {
 									steamTrade.chatMsg(itemNotFoundMessage);
 								}
 								else {
+									//todo if count > max, can't do it
 									steamTrade.addItems([item], function(res) {
 										if (!res || res.length < 1 || res[0].error) {
 											steamTrade.chatMsg(cantAddMessage);
 										}
 										else {
+											claimedItems.push(item);
 											steamTrade.chatMsg(addedMessage);
 										}
 									});
@@ -390,6 +419,21 @@ bot.on('sessionStart', function(steamId) {
 						bot.setPersonaState(steam.EPersonaState.LookingToTrade);
 					}
 					if (status == 'complete') {
+						request.post({ url: mongoUpdaterUrl + "/user/" + steamId + "/trade-accepted" }, function (error, response, body) {
+							if (error) {
+								winston.error("Mongo error calling trade-accepted", error);
+							}
+						});
+						getItems(function(donatedItems) {
+							var tradeId = uuid.v4();
+							_.each(claimedItems, function(item) {
+								postItemDetails(steamId, tradeId, item, true);
+							});
+							_.each(donatedItems, function(item) {
+								postItemDetails(steamId, tradeId, item, false);
+							});
+						});
+
 						bot.sendMessage(steamId, tradeCompleteMessage);
 					}
 				});
@@ -643,4 +687,22 @@ var findSteamIdInReportLink = function(reportLink) {
 var storeCookieFile = function() {
 	var cookieStr = cookies.join('; ');
 	fs.writeFile(cookieFile, cookieStr);
+};
+
+var postItemDetails = function(userId, tradeId, item, wasClaimed) {
+	var itemId = item.appid + "_" + item.contextid + "_" + item.id;
+	var body = {};
+	if (item.name) {
+		body.name = item.name;
+	}
+
+	request.post(
+	{ 
+		url: mongoUpdaterUrl + "/trade/" + userId + "/" + tradeId + "/" + itemId + "/" + wasClaimed,
+		json: body
+	}, function (error, response, body) {
+		if (error) {
+			winston.error("Mongo error calling trade", error);
+		}
+	});
 };
