@@ -8,6 +8,9 @@ var numCaptures = 0;
 var cookieStr = fs.read(cookieFile);
 var cookies = cookieStr.split('; ');
 
+var requestWait = 5000;
+var shouldCapture = false;
+
 var casper = require('casper').create();
 //var casper = require('casper').create({
 //	verbose: true,
@@ -82,7 +85,7 @@ for (var i=0; i < cookies.length; i++) {
 }
 
 casper.start('http://steamcommunity.com/', function() {
-	//this.capture((++numCaptures) + '-homepage.png');
+	if (shouldCapture) { this.capture((++numCaptures) + '-homepage.png'); }
 
 	var offerUrl = this.evaluate(function() {
 		return document.querySelector('a.header_notification_tradeoffers').getAttribute('href');
@@ -91,7 +94,7 @@ casper.start('http://steamcommunity.com/', function() {
 	this.thenOpen(offerUrl, function() {
 		console.log('Opened trade offer page');
 		console.log(this.getCurrentUrl());
-		//this.capture((++numCaptures) + '-opened-offers.png');
+		if (shouldCapture) { this.capture((++numCaptures) + '-opened-offers.png'); }
 	});
 });
 
@@ -131,25 +134,28 @@ function getTradeOfferIds(blacklist) {
 	return offerIds;
 }
 
-casper.then(function() {
-    var offerIds = this.evaluate(getTradeOfferIds, secrets.blacklist);
-    console.log('offerIds');
-    console.log(offerIds);
 
-    for (var i=0; i < offerIds.length; i++) {
+
+casper.then(function() {
+	var offerIds = this.evaluate(getTradeOfferIds, secrets.blacklist);
+	console.log('offerIds');
+	console.log(offerIds);
+
+	for (var i=0; i < offerIds.length; i++) {
 		this.thenOpen('http://steamcommunity.com/tradeoffer/' + offerIds[i] + '/', function() {
 			console.log('Opened trade offer page:');
 			console.log(this.getCurrentUrl());
-			//this.capture((++numCaptures) + '-offer.png');
+			if (shouldCapture) { this.capture((++numCaptures) + '-offer.png'); }
 
 			this.evaluate(function() {
 				// $ is a non-jQuery library on the steam site
 				$J('#you_notready').click();
 				console.log('clicked ready');
 			});		
-			//this.capture((++numCaptures) + '-clickedready.png');
+			if (shouldCapture) { this.capture((++numCaptures) + '-clickedready.png'); }
 
-			this.wait(5000, function() {
+			this.wait(requestWait, function() {
+
 				this.evaluate(function() {
 					// "Yes this is a gift" button
 					giftButton = $J('.newmodal .btn_green_white_innerfade');
@@ -158,21 +164,136 @@ casper.then(function() {
 						console.log('clicked gift acceptance');
 					}
 				});
-				//this.capture((++numCaptures) + '-checkedgift.png');
+				if (shouldCapture) { this.capture((++numCaptures) + '-checkedgift.png'); }
 
-				this.wait(5000, function() {
-					this.evaluate(function() {
+				this.wait(requestWait, function() {
+					var itemDetails = this.evaluate(function() {
+
+						var myGetNameForItem = function(idString, fromMyInventory) {
+							if (!idString || !g_rgAppContextData) return null;
+
+							var splitId = idString.split("_");
+							if (splitId.length != 3) return;
+
+							var appId = splitId[0];
+							var contextId = splitId[1];
+							var invId = splitId[2];
+
+							var contextData = fromMyInventory ? g_rgAppContextData : g_rgPartnerAppContextData;
+
+							try {
+								return contextData[appId].rgContexts[contextId].inventory.rgInventory[invId].name;
+							} catch (e) {
+								return null;
+							}
+						}
+
+						var findItemIds = function(prefix, fromMyInventory) {
+							var results = [];
+							$J('#' + prefix + ' .item').each(function() {
+								var paddedId = $J(this).attr("id");
+								if (paddedId && paddedId.length > 4) {
+									// ID is of the form "item753_6_1071908636"
+									var strippedId = paddedId.substr(4);
+									var itemDetails = { id: strippedId };
+									var name = myGetNameForItem(strippedId, fromMyInventory);
+									if (name) {
+										itemDetails.name = name;
+									}
+
+									results.push(itemDetails);
+								}
+							});
+							return results;
+						};
+
+						var buildItemDetails = function(userId, tradeId, item, wasClaimed) {
+							var details = {
+								userId: g_ulTradePartnerSteamID,
+								tradeId: tradeId,
+								itemId: item.id,
+								wasClaimed: wasClaimed
+							};
+							if (item.name) {
+								details.name = item.name;
+							}
+							return details;
+						}
+
+						var userId = g_ulTradePartnerSteamID;
+
+						// generate random GUID for trade ID
+						// http://stackoverflow.com/a/8809472/20925
+						var d = new Date().getTime();
+						var tradeId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+							var r = (d + Math.random()*16)%16 | 0;
+							d = Math.floor(d/16);
+							return (c=='x' ? r : (r&0x7|0x8)).toString(16);
+						});
+
+						var claimedItems = findItemIds('trade_yours', true);
+						var donatedItems = findItemIds('trade_theirs', false);
+
+						var itemDetails = [];
+						for (var i = 0; i < claimedItems.length; i++) {
+							itemDetails.push(buildItemDetails(userId, tradeId, claimedItems[i], true));
+						}
+						for (var i = 0; i < donatedItems.length; i++) {
+							itemDetails.push(buildItemDetails(userId, tradeId, donatedItems[i], false));
+						}
+
 						$J('#trade_confirmbtn').click();
 						console.log('clicked confirm');
-					});
-					//this.capture((++numCaptures) + '-clickedconfirm.png');
 
-					this.wait(5000, function() {});
-					//this.capture((++numCaptures) + '-finishedtrade.png');
+						return itemDetails;
+					});
+					if (shouldCapture) { this.capture((++numCaptures) + '-clickedconfirm.png'); }
+
+					this.wait(requestWait, function() {
+						console.log('done, logging results');
+						if (shouldCapture) { this.capture((++numCaptures) + '-finishedtrade.png'); }
+
+						// If the trade succeeded we should be redirected to the receipt page
+						var url = this.getCurrentUrl();
+						var suffix = "/receipt";
+						var tradeSucceeded = url.indexOf(suffix, url.length - suffix.length) !== -1;
+
+						if (tradeSucceeded && itemDetails && itemDetails.length > 0) {
+							var mongoUpdaterUrl = "http://localhost:" + secrets.mongoUpdaterPort;
+
+							this.thenOpen(mongoUpdaterUrl + "/user/" + itemDetails[0].userId + "/trade-accepted" , {
+								method: 'post',
+								data: {}
+							}, function(param) {
+								if (param.status != 204) {
+									console.log("Posting trade accepted to mongo failed");
+								}
+							});
+
+							for (var i = 0; i < itemDetails.length; i++) {
+								var postUrl = mongoUpdaterUrl + "/trade/" + itemDetails[i].userId + "/" 
+									+ itemDetails[i].tradeId + "/" + itemDetails[i].itemId + "/" + itemDetails[i].wasClaimed;
+								var body = {};
+								if (itemDetails[i].name) {
+									body.name = itemDetails[i].name;
+								}
+
+								this.thenOpen(postUrl , {
+									method: 'post',
+									headers: { 'Content-Type': 'application/json' },
+									data: JSON.stringify(body)
+								}, function(param) {
+									if (param.status != 204) {
+										console.log("Posting item details to mongo failed");
+									}
+								});
+							}
+						}
+					});
 				});
 			});
 		});
-    }
+	}
 });
 
 casper.run();

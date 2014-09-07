@@ -165,6 +165,7 @@ mongodb.connect(secrets.mongoUri, function (err, dbClient) {
 		var itemId = req.params.itemId;
 		var wasClaimed = req.params.wasClaimed == 'true';
 		winston.info("POST /trade/" + userId + "/" + tradeId + "/" + "itemId" + "/" + wasClaimed);
+		winston.info("POST body", req.body);
 
 		var incUpdates = { $inc: {} };
 		if (wasClaimed) {
